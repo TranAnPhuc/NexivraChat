@@ -1,0 +1,6 @@
+@NexivraChatBackend_HostAddress = http://localhost:5182
+
+GET {{NexivraChatBackend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
