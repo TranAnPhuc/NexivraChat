@@ -15,3 +15,8 @@
 
 - Luôn sử dụng Dapper để viết SQL thuần, không dùng Entity Framework.
 - Tên bảng và thuộc tính trong SQL phải khớp chính xác với file Entity trong thư mục Models.
+
+## Tiến trình cập nhật hàm
+
+- Hàm `GetOldMessages(int limit, int offset)` đã được cập nhật trong class `MessageRepository.cs`.
+- Hàm `SaveNewMessage(Message message)` đã được cập nhật trong class `MessageRepository.cs`.
