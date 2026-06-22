@@ -12,5 +12,6 @@ namespace NexivraChatBackend.Models
         public string SenderName { get; set; }
         public string Content { get; set; }
         public DateTime CreatedAt { get; set; }
+        public bool IsAi { get; set; }
     }
 }

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NexivraChatBackend")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3040581bb997f083abeef15a9c5b1cbeb7d2110f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+01bd30e35642d722c3b154bc70556e7e8b37e642")]
 [assembly: System.Reflection.AssemblyProductAttribute("NexivraChatBackend")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NexivraChatBackend")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

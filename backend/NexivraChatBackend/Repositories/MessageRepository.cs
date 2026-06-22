@@ -1,8 +1,8 @@
+using Dapper;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Dapper;
 using NexivraChatBackend.Data;
 using NexivraChatBackend.Models;
 
@@ -22,7 +22,18 @@ namespace NexivraChatBackend.Repositories
             using (var connection = _context.CreateConnection())
             {
                 var query = "SELECT * FROM messages ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
-                return connection.Query<Message>(query, new { limit = limit, offset = offset }).ToList();
+                return connection.Query<Message>(query, new { limit, offset }).ToList();
+            }
+        }
+
+        public List<Message> GetMessagesByRoom(int roomId, int limit = 50, int offset = 0)
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                var query = "SELECT * FROM messages WHERE room_id = @roomId ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
+                var result = connection.Query<Message>(query, new { roomId, limit, offset }).ToList();
+                result.Reverse(); // Trả về theo thứ tự thời gian tăng dần
+                return result;
             }
         }
 
@@ -30,8 +41,20 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "INSERT INTO messages (content, created_at) VALUES (@content, @created_at)";
-                connection.Execute(query, new { content = message.Content, created_at = DateTime.Now });
+                var query = @"
+                    INSERT INTO messages (room_id, sender_name, content, created_at, is_ai) 
+                    VALUES (@room_id, @sender_name, @content, @created_at, @is_ai)
+                    RETURNING id;";
+                
+                var id = connection.ExecuteScalar<int>(query, new 
+                { 
+                    room_id = message.RoomId,
+                    sender_name = message.SenderName,
+                    content = message.Content, 
+                    created_at = message.CreatedAt == default ? DateTime.Now : message.CreatedAt,
+                    is_ai = message.IsAi
+                });
+                message.Id = id;
             }
         }
     }
