@@ -6,7 +6,7 @@ import { Input, Button, message } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { API_BASE_URL } from '../services/api';
-import { RoomSidebar, Room } from '../components/RoomSidebar';
+import { RoomSidebar, type Room } from '../components/RoomSidebar';
 import { CopilotPanel } from '../components/CopilotPanel';
 
 export interface Message {

@@ -1,22 +1,140 @@
-# Project: AI Chat Realtime MVP
+# 🌐 Real-time AI Chat Copilot - Project Context
 
-## Tech Stack Cố Định
+Tài liệu này cung cấp cái nhìn toàn diện về cấu trúc thư mục, kiến trúc kỹ thuật, luồng dữ liệu và trạng thái hiện tại của dự án **AI Chat Realtime MVP**. Tài liệu giúp các phiên làm việc tiếp theo hiểu ngay hệ thống mà không cần đọc lại toàn bộ mã nguồn.
 
-- Backend: ASP.NET Core Web API, SignalR Hub
-- Database: PostgreSQL + Dapper (Sử dụng DapperContext.cs để quản lý connection)
-- Frontend: React TypeScript + Ant Design (antd)
+---
 
-## Cấu trúc thư mục hiện tại
+## 🛠️ Công Nghệ Sử Dụng (Tech Stack)
 
-- `Backend/Data/DapperContext.cs` (Đã tạo - quản lý kết nối DB)
-- `Backend/Models/` (Đã có các Entity: User, ChatRoom, Message)
+Hệ thống được xây dựng trên mô hình Client-Server tách biệt:
+- **Backend**: .NET 8 Web API, SignalR Hub quản lý kết nối thời gian thực.
+- **Database**: PostgreSQL kết hợp **Dapper** (truy vấn SQL thuần, tuyệt đối không dùng EF Core).
+- **Frontend**: React 19, TypeScript, Ant Design (antd) làm UI system, tuân thủ không dùng màu tím (Purple Ban).
+- **AI Integration**: Gemini API (`gemini-2.5-flash`) truyền dữ liệu dạng streaming qua SignalR.
 
-## Quy tắc Code
+---
 
-- Luôn sử dụng Dapper để viết SQL thuần, không dùng Entity Framework.
-- Tên bảng và thuộc tính trong SQL phải khớp chính xác với file Entity trong thư mục Models.
+## 📁 Cấu Trúc Thư Mục & Các File Quan Trọng
 
-## Tiến trình cập nhật hàm
+```plaintext
+NexivraChat/
+├── backend/
+│   └── NexivraChatBackend/
+│       ├── Controllers/
+│       │   ├── AuthController.cs          # Đăng ký & Đăng nhập, băm mật khẩu BCrypt, cấp JWT.
+│       │   └── RoomsController.cs         # Lấy danh sách phòng, lịch sử tin nhắn của phòng (phân trang).
+│       ├── Data/
+│       │   ├── DapperContext.cs           # Khởi tạo kết nối NpgsqlConnection, cấu hình Map tên thuộc tính dạng snake_case.
+│       │   └── DbInitializer.cs           # Tự động tạo bảng (users, chat_rooms, messages) và seed dữ liệu phòng mặc định.
+│       ├── Hubs/
+│       │   └── ChatHub.cs                 # Trọng tâm điều phối SignalR: gửi tin nhắn, tham gia phòng, điều phối stream AI.
+│       ├── Models/
+│       │   ├── User.cs                    # Bản ghi User (id, username, password_hash, created_at).
+│       │   ├── ChatRoom.cs                # Bản ghi ChatRoom (id, name, description).
+│       │   └── Message.cs                 # Bản ghi Message (id, room_id, sender_name, content, created_at, is_ai).
+│       ├── Repositories/
+│       │   ├── UserRepository.cs          # Truy vấn dữ liệu User bằng Dapper.
+│       │   ├── RoomRepository.cs          # Truy vấn dữ liệu Room bằng Dapper.
+│       │   └── MessageRepository.cs       # Lưu tin nhắn mới và lấy lịch sử tin nhắn cũ.
+│       ├── Services/
+│       │   ├── TokenService.cs            # Tạo mã JWT Token thời hạn 7 ngày.
+│       │   └── AiService.cs               # Gọi trực tiếp REST API của Gemini với luồng stream IAsyncEnumerable<string>.
+│       ├── Properties/
+│       │   └── launchSettings.json        # Cấu hình cổng chạy backend (HTTP: 5182, HTTPS: 7103).
+│       ├── Program.cs                     # Cấu hình ứng dụng: CORS, JWT Auth, SignalR mapping, DI Container.
+│       └── appsettings.json               # Chuỗi kết nối DB PostgreSQL và khóa bí mật JWT.
+│
+├── frontend/
+│   └── nexivra-chat-frontend/
+│       ├── src/
+│       │   ├── components/
+│       │   │   ├── CopilotPanel.tsx       # Bảng công cụ AI (Tóm tắt phòng chat, Gợi ý chủ đề, Giải nghĩa thuật ngữ).
+│       │   │   └── RoomSidebar.tsx        # Danh sách phòng chat, tạo phòng mới, thông tin user và nút đăng xuất.
+│       │   ├── views/
+│       │   │   ├── LoginView.tsx          # Màn hình đăng nhập/đăng ký giao diện tối phong cách Terminal.
+│       │   │   └── ChatView.tsx           # Giao diện chính kết nối SignalR Client, hiển thị tin nhắn, stream AI và gửi chat.
+│       │   ├── services/
+│       │   │   └── api.ts                 # Cấu hình Axios, tự động đính kèm JWT Token vào Header của các yêu cầu API.
+│       │   ├── App.tsx                    # Quản lý trạng thái đăng nhập toàn cục và điều phối hiển thị LoginView / ChatView.
+│       │   ├── index.css                  # Style CSS cơ bản và cấu hình thanh cuộn console.
+│       │   └── main.tsx                   # Điểm khởi đầu của ứng dụng React.
+│       ├── package.json                   # Các gói phụ thuộc (antd, @microsoft/signalr, axios, vite).
+│       └── vite.config.ts                 # Cấu hình Vite.
+```
 
-- Hàm `GetOldMessages(int limit, int offset)` đã được cập nhật trong class `MessageRepository.cs`.
-- Hàm `SaveNewMessage(Message message)` đã được cập nhật trong class `MessageRepository.cs`.
+---
+
+## 🗄️ Database Schema (PostgreSQL)
+
+```sql
+-- 1. Bảng Users (Lưu thông tin tài khoản)
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 2. Bảng ChatRooms (Các phòng chat nhóm)
+CREATE TABLE chat_rooms (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 3. Bảng Messages (Lưu lịch sử tin nhắn bao gồm tin nhắn của AI)
+CREATE TABLE messages (
+    id SERIAL PRIMARY KEY,
+    room_id INT REFERENCES chat_rooms(id) ON DELETE CASCADE,
+    sender_name VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_ai BOOLEAN DEFAULT FALSE NOT NULL
+);
+```
+
+---
+
+## 🔄 Quy Trình Xử Lý Real-time & Stream AI (SignalR)
+
+```mermaid
+sequenceDiagram
+    participant Client as Frontend (Vite + React)
+    participant Hub as SignalR (ChatHub)
+    participant Repo as Database (Dapper)
+    participant AI as Gemini API (AiService)
+
+    Client->>Hub: SendMessage(roomId, "@copilot Làm sao để học .NET?")
+    activate Hub
+    
+    Hub->>Repo: SaveNewMessage(User Message)
+    Hub->>Client: ReceiveMessage(User Message)
+    
+    Note over Hub: Phát hiện tiền tố @copilot. Gọi Gemini API.
+    
+    Hub->>Hub: Tạo tempAiMessageId (số âm ngẫu nhiên)
+    Hub->>Client: ReceiveMessage(AI Placeholder với ID âm)
+    
+    loop Stream token từ Gemini
+        AI-->>Hub: Gửi token mới
+        Hub->>Client: ReceiveAiToken(tempAiMessageId, token)
+        Note over Client: Cập nhật ký tự nhận được vào Bubble chat tức thì
+    end
+    
+    Hub->>Repo: SaveNewMessage(Tin nhắn AI hoàn chỉnh)
+    Hub->>Client: ReceiveAiComplete(tempAiMessageId, finalAiMessageId, finalContent)
+    Note over Client: Thay thế ID âm bằng ID thật từ Database
+    deactivate Hub
+```
+
+---
+
+## ⚠️ Điểm Cần Khắc Phục Hiện Tại (Critical Bugs)
+
+1. **Lỗi import ở `CopilotPanel.tsx`**:
+   - Dòng 94 sử dụng `<LightBulbOutlined />` trong khi danh sách import chỉ có `BulbOutlined`. Điều này sẽ gây lỗi compile / crash giao diện React khi hiển thị panel AI. Cần sửa đổi sang `<BulbOutlined />`.
+2. **Cài đặt thư viện Frontend**:
+   - Dự án Frontend chưa được cài đặt thư viện (`node_modules`). Cần chạy `npm install` trước khi build hoặc start dev server.
+3. **Cấu hình Gemini API Key**:
+   - Cần bổ sung cấu hình `"Gemini:ApiKey"` vào file `appsettings.json` (hoặc nạp thông qua Environment Variable `GEMINI_API_KEY`) để kích hoạt trí tuệ nhân tạo thực thay vì chạy chế độ Mock dữ liệu.

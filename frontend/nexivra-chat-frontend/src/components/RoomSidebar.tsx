@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
-import { Button, Modal, Form, Input, message } from 'antd';
+import { Button, Modal, Form, Input, message, ConfigProvider } from 'antd';
 import { PlusOutlined, LogoutOutlined, CommentOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
@@ -145,88 +145,98 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
       </div>
 
       {/* Create Room Modal */}
-      <Modal
-        title={<span style={{ color: '#a3e635', fontFamily: 'monospace' }}>// CREATE_NEW_CHANNEL</span>}
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        footer={null}
-        style={{ borderRadius: 0 }}
-        styles={{
-          mask: { backgroundColor: 'rgba(0, 0, 0, 0.8)' },
-          content: { backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: 0 }
+      <ConfigProvider
+        theme={{
+          token: {
+            colorBgElevated: '#0f172a',
+            colorTextHeading: '#a3e635',
+            colorText: '#fff',
+            borderRadiusLG: 0,
+          }
         }}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleCreateRoom}
-          style={{ marginTop: '16px' }}
+        <Modal
+          title={<span style={{ color: '#a3e635', fontFamily: 'monospace' }}>// CREATE_NEW_CHANNEL</span>}
+          open={isModalOpen}
+          onCancel={() => setIsModalOpen(false)}
+          footer={null}
+          style={{ border: '1px solid #334155', borderRadius: 0, padding: 0 }}
+          styles={{
+            mask: { backgroundColor: 'rgba(0, 0, 0, 0.8)' }
+          }}
         >
-          <Form.Item
-            label={<span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>CHANNEL_NAME</span>}
-            name="name"
-            rules={[{ required: true, message: 'Nhập tên phòng!' }]}
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleCreateRoom}
+            style={{ marginTop: '16px' }}
           >
-            <Input
-              placeholder="e.g. dotnet-discussion"
-              style={{
-                backgroundColor: '#1e293b',
-                borderColor: '#475569',
-                color: '#fff',
-                borderRadius: 0,
-                fontFamily: 'monospace'
-              }}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label={<span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>DESCRIPTION</span>}
-            name="description"
-          >
-            <Input
-              placeholder="Room description..."
-              style={{
-                backgroundColor: '#1e293b',
-                borderColor: '#475569',
-                color: '#fff',
-                borderRadius: 0,
-                fontFamily: 'monospace'
-              }}
-            />
-          </Form.Item>
-
-          <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: 0 }}>
-            <Button
-              onClick={() => setIsModalOpen(false)}
-              style={{
-                backgroundColor: 'transparent',
-                borderColor: '#475569',
-                color: '#94a3b8',
-                borderRadius: 0,
-                fontFamily: 'monospace',
-                marginRight: '8px'
-              }}
+            <Form.Item
+              label={<span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>CHANNEL_NAME</span>}
+              name="name"
+              rules={[{ required: true, message: 'Nhập tên phòng!' }]}
             >
-              CANCEL
-            </Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              style={{
-                backgroundColor: '#a3e635',
-                borderColor: '#a3e635',
-                color: '#000',
-                borderRadius: 0,
-                fontWeight: 'bold',
-                fontFamily: 'monospace'
-              }}
+              <Input
+                placeholder="e.g. dotnet-discussion"
+                style={{
+                  backgroundColor: '#1e293b',
+                  borderColor: '#475569',
+                  color: '#fff',
+                  borderRadius: 0,
+                  fontFamily: 'monospace'
+                }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label={<span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>DESCRIPTION</span>}
+              name="description"
             >
-              INITIALIZE
-            </Button>
-          </Form.Item>
-        </Form>
-      </Modal>
+              <Input
+                placeholder="Room description..."
+                style={{
+                  backgroundColor: '#1e293b',
+                  borderColor: '#475569',
+                  color: '#fff',
+                  borderRadius: 0,
+                  fontFamily: 'monospace'
+                }}
+              />
+            </Form.Item>
+
+            <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: 0 }}>
+              <Button
+                onClick={() => setIsModalOpen(false)}
+                style={{
+                  backgroundColor: 'transparent',
+                  borderColor: '#475569',
+                  color: '#94a3b8',
+                  borderRadius: 0,
+                  fontFamily: 'monospace',
+                  marginRight: '8px'
+                }}
+              >
+                CANCEL
+              </Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                style={{
+                  backgroundColor: '#a3e635',
+                  borderColor: '#a3e635',
+                  color: '#000',
+                  borderRadius: 0,
+                  fontWeight: 'bold',
+                  fontFamily: 'monospace'
+                }}
+              >
+                INITIALIZE
+              </Button>
+            </Form.Item>
+          </Form>
+        </Modal>
+      </ConfigProvider>
     </div>
   );
 };

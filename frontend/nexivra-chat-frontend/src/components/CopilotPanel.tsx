@@ -91,7 +91,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ onTriggerCommand }) 
           }}
         >
           <div style={{ color: '#a3e635', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <LightBulbOutlined /> GỢI Ý CHỦ ĐỀ CHAT
+            <BulbOutlined /> GỢI Ý CHỦ ĐỀ CHAT
           </div>
           <p style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>
             AI gợi ý các chủ đề thảo luận tiếp theo cho phòng chat.

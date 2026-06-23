@@ -17,7 +17,9 @@ namespace NexivraChatBackend.Services
         public AiService(IConfiguration config)
         {
             _httpClient = new HttpClient();
-            _apiKey = config["Gemini:ApiKey"] ?? string.Empty;
+            var configKey = config["Gemini:ApiKey"];
+            var envKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+            _apiKey = !string.IsNullOrEmpty(configKey) ? configKey : (!string.IsNullOrEmpty(envKey) ? envKey : string.Empty);
         }
 
         public async IAsyncEnumerable<string> StreamResponseAsync(string prompt, string conversationHistory = "")

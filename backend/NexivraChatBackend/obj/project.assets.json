@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 3,
   "targets": {
     "net8.0": {
       "Dapper/2.1.79": {
@@ -1969,11 +1969,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Vibe_Coding\\NexivraChat\\backend\\NexivraChatBackend\\NexivraChatBackend.csproj",
+      "projectUniqueName": "D:\\Desktop\\NexivraChat\\backend\\NexivraChatBackend\\NexivraChatBackend.csproj",
       "projectName": "NexivraChatBackend",
-      "projectPath": "D:\\Vibe_Coding\\NexivraChat\\backend\\NexivraChatBackend\\NexivraChatBackend.csproj",
+      "projectPath": "D:\\Desktop\\NexivraChat\\backend\\NexivraChatBackend\\NexivraChatBackend.csproj",
       "packagesPath": "C:\\Users\\anphuc\\.nuget\\packages\\",
-      "outputPath": "D:\\Vibe_Coding\\NexivraChat\\backend\\NexivraChatBackend\\obj\\",
+      "outputPath": "D:\\Desktop\\NexivraChat\\backend\\NexivraChatBackend\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\anphuc\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -1982,11 +1982,11 @@
         "net8.0"
       ],
       "sources": {
+        "C:\\Program Files\\dotnet\\library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net8.0": {
-          "framework": "net8.0",
           "targetAlias": "net8.0",
           "projectReferences": {}
         }
@@ -2000,12 +2000,10 @@
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      },
-      "SdkAnalysisLevel": "10.0.300"
+      }
     },
     "frameworks": {
       "net8.0": {
-        "framework": "net8.0",
         "targetAlias": "net8.0",
         "dependencies": {
           "Dapper": {
@@ -2048,7 +2046,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.301/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

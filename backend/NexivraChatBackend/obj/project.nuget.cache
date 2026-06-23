@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "jWaVN7ApOt0=",
+  "dgSpecHash": "GCn4hJAmvd4=",
   "success": true,
-  "projectFilePath": "D:\\Vibe_Coding\\NexivraChat\\backend\\NexivraChatBackend\\NexivraChatBackend.csproj",
+  "projectFilePath": "D:\\Desktop\\NexivraChat\\backend\\NexivraChatBackend\\NexivraChatBackend.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\anphuc\\.nuget\\packages\\dapper\\2.1.79\\dapper.2.1.79.nupkg.sha512",
     "C:\\Users\\anphuc\\.nuget\\packages\\microsoft.aspnetcore.authentication.abstractions\\2.3.0\\microsoft.aspnetcore.authentication.abstractions.2.3.0.nupkg.sha512",
