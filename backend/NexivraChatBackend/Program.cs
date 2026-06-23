@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. Đăng ký các dịch vụ cốt lõi
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<NexivraChatBackend.Services.PresenceTracker>();
 
 // 2. Đăng ký DapperContext và các Repositories
 builder.Services.AddSingleton<DapperContext>();
