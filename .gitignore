@@ -1,0 +1,10 @@
+# Secrets - local dev config (chứa API key)
+appsettings.Development.json
+backend/NexivraChatBackend/appsettings.Development.json
+
+# Node
+node_modules/
+
+# .NET build output
+bin/
+obj/
