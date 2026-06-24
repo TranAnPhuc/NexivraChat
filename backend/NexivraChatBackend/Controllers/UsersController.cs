@@ -29,7 +29,7 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetUsers()
+        public async Task<IActionResult> GetUsers()
         {
             var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(currentUserIdStr) || !int.TryParse(currentUserIdStr, out var currentUserId))
@@ -37,8 +37,8 @@ namespace NexivraChatBackend.Controllers
                 return Unauthorized();
             }
 
-            var allUsers = _userRepository.GetAll();
-            
+            var allUsers = await _userRepository.GetAll();
+
             // Lọc bỏ user hiện tại và chỉ lấy Id + Username
             var otherUsers = allUsers
                 .Where(u => u.Id != currentUserId)

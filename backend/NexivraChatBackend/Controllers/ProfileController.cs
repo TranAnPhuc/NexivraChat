@@ -69,9 +69,9 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpGet("{userId}")]
-        public IActionResult GetUserProfile(int userId)
+        public async Task<IActionResult> GetUserProfile(int userId)
         {
-            var allUsers = _userRepository.GetAll();
+            var allUsers = await _userRepository.GetAll();
             var targetUser = allUsers.FirstOrDefault(u => u.Id == userId);
             if (targetUser == null)
             {

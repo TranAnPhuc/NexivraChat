@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using NexivraChatBackend.Models;
 using NexivraChatBackend.Repositories;
 using NexivraChatBackend.Services;
+using System.Threading.Tasks;
 
 namespace NexivraChatBackend.Controllers
 {
@@ -22,14 +23,14 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpPost("register")]
-        public IActionResult Register([FromBody] RegisterDto dto)
+        public async Task<IActionResult> Register([FromBody] RegisterDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
             {
                 return BadRequest("Tên đăng nhập và mật khẩu không được để trống.");
             }
 
-            var existingUser = _userRepository.GetByUsername(dto.Username);
+            var existingUser = await _userRepository.GetByUsername(dto.Username);
             if (existingUser != null)
             {
                 return BadRequest("Tên đăng nhập đã tồn tại.");
@@ -42,21 +43,21 @@ namespace NexivraChatBackend.Controllers
             };
 
             user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
-            _userRepository.Create(user);
+            await _userRepository.Create(user);
 
             var token = _tokenService.CreateToken(user);
             return Ok(new AuthResponseDto { Username = user.Username, Token = token });
         }
 
         [HttpPost("login")]
-        public IActionResult Login([FromBody] LoginDto dto)
+        public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
             {
                 return BadRequest("Tên đăng nhập và mật khẩu không được để trống.");
             }
 
-            var user = _userRepository.GetByUsername(dto.Username);
+            var user = await _userRepository.GetByUsername(dto.Username);
             if (user == null)
             {
                 return Unauthorized("Tên đăng nhập hoặc mật khẩu không chính xác.");
