@@ -17,7 +17,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ onTriggerCommand }) 
   };
 
   return (
-    <div style={{ width: '280px', backgroundColor: 'var(--bg-surface)', borderLeft: '1px solid var(--border)', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--text-primary)' }}>
+    <div style={{ width: '280px', boxSizing: 'border-box', backgroundColor: 'var(--bg-surface)', borderLeft: '1px solid var(--border)', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, color: 'var(--text-primary)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
         <RobotOutlined style={{ color: 'var(--primary)', fontSize: '20px' }} />
@@ -32,7 +32,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ onTriggerCommand }) 
 
       <Divider style={{ borderColor: 'var(--border)', margin: '12px 0' }} />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <Card size="small" style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border)', borderRadius: 8 }} styles={{ body: { padding: '12px' } }}>
           <div style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <AlignLeftOutlined /> Tóm tắt phòng
