@@ -35,6 +35,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+  const connectionRef = useRef<HubConnection | null>(null);
+  const activeRoomIdRef = useRef<number | null>(null);
 
   const messageEndRef = useRef<HTMLDivElement>(null);
 
@@ -66,10 +68,16 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     }
   };
 
+  useEffect(() => { connectionRef.current = connection; }, [connection]);
+  useEffect(() => { activeRoomIdRef.current = activeRoomId; }, [activeRoomId]);
+
   useEffect(() => {
     if (activeRoomId !== null) {
       setOnlineUsers([]);
       setTypingUsers([]);
+      // Clear any in-flight typing timer so it cannot fire against the stale room
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      isTypingRef.current = false;
       fetchMessageHistory(activeRoomId);
       // Nếu SignalR đang kết nối, gửi yêu cầu tham gia phòng mới
       if (connection && connection.state === 'Connected') {
@@ -187,8 +195,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   }, [messages]);
 
   const sendTyping = (isTyping: boolean) => {
-    if (!connection || connection.state !== 'Connected' || activeRoomId === null) return;
-    connection.invoke('Typing', activeRoomId, isTyping).catch(() => {});
+    const conn = connectionRef.current;
+    const roomId = activeRoomIdRef.current;
+    if (!conn || conn.state !== 'Connected' || roomId === null) return;
+    conn.invoke('Typing', roomId, isTyping).catch(() => {});
   };
 
   const handleInputChange = (value: string) => {
@@ -211,9 +221,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
 
     try {
       await connection.invoke('SendMessage', activeRoomId, text.trim());
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      isTypingRef.current = false;
-      sendTyping(false);
+      if (isTypingRef.current) {
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        isTypingRef.current = false;
+        sendTyping(false);
+      }
       if (textToSend === undefined) {
         setInputText('');
       }
