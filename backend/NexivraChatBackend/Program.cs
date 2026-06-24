@@ -23,8 +23,8 @@ builder.Services.AddScoped<ProfileRepository>();
 
 // 3. Đăng ký các Services phụ trợ
 builder.Services.AddScoped<TokenService>();
-builder.Services.AddScoped<AiService>();
-builder.Services.AddScoped<TranslationService>();
+builder.Services.AddHttpClient<AiService>();
+builder.Services.AddHttpClient<TranslationService>();
 
 // 4. Cấu hình JWT Authentication
 var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "DefaultSuperSecretKey1234567890123456";

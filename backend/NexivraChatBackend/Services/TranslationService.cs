@@ -12,9 +12,9 @@ namespace NexivraChatBackend.Services
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
 
-        public TranslationService(IConfiguration config)
+        public TranslationService(HttpClient httpClient, IConfiguration config)
         {
-            _httpClient = new HttpClient();
+            _httpClient = httpClient;
             var configKey = config["Gemini:ApiKey"];
             var envKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
             _apiKey = !string.IsNullOrEmpty(configKey) ? configKey : (!string.IsNullOrEmpty(envKey) ? envKey : string.Empty);
