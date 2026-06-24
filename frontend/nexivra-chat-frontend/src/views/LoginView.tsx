@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../services/api';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 interface LoginViewProps {
   onLoginSuccess: (username: string, token: string) => void;
@@ -37,44 +38,38 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
   return (
     <div style={{
+      position: 'relative',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
       height: '100vh',
-      backgroundColor: '#0a0f1d',
-      color: '#fff',
-      fontFamily: 'monospace'
+      backgroundColor: 'var(--bg-canvas)',
+      color: 'var(--text-primary)',
     }}>
+      <div style={{ position: 'absolute', top: 16, right: 16 }}>
+        <ThemeToggle />
+      </div>
+
       <Card
         title={
-          <div style={{ color: '#a3e635', fontFamily: 'monospace', textAlign: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-            {isRegister ? '// REGISTER_SYS' : '// LOGIN_SYS'}
+          <div style={{
+            textAlign: 'center',
+            fontSize: '20px',
+            fontWeight: 600,
+            fontFamily: "'Outfit', sans-serif",
+            color: 'var(--text-primary)',
+          }}>
+            {isRegister ? 'Đăng ký' : 'Đăng nhập'}
           </div>
         }
-        bordered={true}
         style={{
           width: 380,
-          backgroundColor: '#0f172a',
-          borderColor: '#334155',
-          borderRadius: 0,
-          boxShadow: '0 0 15px rgba(163, 230, 53, 0.1)',
-        }}
-        styles={{
-          header: {
-            borderBottom: '1px solid #334155',
-            backgroundColor: '#0f172a',
-          },
-          body: {
-            backgroundColor: '#0f172a',
-          }
+          backgroundColor: 'var(--bg-surface)',
+          borderColor: 'var(--border)',
+          borderRadius: 12,
         }}
       >
-        <Form
-          form={form}
-          name="auth_form"
-          onFinish={handleFinish}
-          layout="vertical"
-        >
+        <Form form={form} name="auth_form" onFinish={handleFinish} layout="vertical">
           <Form.Item
             name="username"
             rules={[
@@ -82,17 +77,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               { min: 3, message: 'Tối thiểu 3 ký tự.' }
             ]}
           >
-            <Input 
-              prefix={<UserOutlined style={{ color: '#64748b' }} />} 
-              placeholder="Username" 
-              style={{
-                backgroundColor: '#1e293b',
-                borderColor: '#475569',
-                color: '#fff',
-                borderRadius: 0,
-                fontFamily: 'monospace'
-              }}
-            />
+            <Input prefix={<UserOutlined style={{ color: 'var(--text-muted)' }} />} placeholder="Tên đăng nhập" />
           </Form.Item>
 
           <Form.Item
@@ -102,49 +87,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               { min: 6, message: 'Mật khẩu cần tối thiểu 6 ký tự.' }
             ]}
           >
-            <Input.Password
-              prefix={<LockOutlined style={{ color: '#64748b' }} />}
-              placeholder="Password"
-              style={{
-                backgroundColor: '#1e293b',
-                borderColor: '#475569',
-                color: '#fff',
-                borderRadius: 0,
-                fontFamily: 'monospace'
-              }}
-            />
+            <Input.Password prefix={<LockOutlined style={{ color: 'var(--text-muted)' }} />} placeholder="Mật khẩu" />
           </Form.Item>
 
           <Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              style={{
-                width: '100%',
-                backgroundColor: '#a3e635',
-                borderColor: '#a3e635',
-                color: '#000',
-                borderRadius: 0,
-                fontWeight: 'bold',
-                fontFamily: 'monospace',
-                height: '40px'
-              }}
-            >
-              {isRegister ? 'INITIALIZE_USER' : 'CONNECT_SESSION'}
+            <Button type="primary" htmlType="submit" loading={loading} block style={{ height: 42, fontWeight: 500 }}>
+              {isRegister ? 'Tạo tài khoản' : 'Đăng nhập'}
             </Button>
           </Form.Item>
         </Form>
-        <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
+
+        <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '13px', color: 'var(--text-secondary)' }}>
           {isRegister ? 'Đã có tài khoản? ' : 'Chưa có tài khoản? '}
           <span
-            onClick={() => {
-              setIsRegister(!isRegister);
-              form.resetFields();
-            }}
-            style={{ color: '#a3e635', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => { setIsRegister(!isRegister); form.resetFields(); }}
+            style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 500 }}
           >
-            {isRegister ? 'Login' : 'Register'}
+            {isRegister ? 'Đăng nhập' : 'Đăng ký'}
           </span>
         </div>
       </Card>
