@@ -151,7 +151,7 @@ sequenceDiagram
 
 1. **Lỗi import ở `CopilotPanel.tsx`** ✅ ĐÃ SỬA:
    - Dòng 94 đã sử dụng `<BulbOutlined />` (không phải `<LightBulbOutlined />`). Sửa xong, không gây lỗi.
-2. **Cài đặt thư viện Frontend**:
-   - Dự án Frontend chưa được cài đặt thư viện (`node_modules`). Cần chạy `npm install` trước khi build hoặc start dev server.
+2. **Cài đặt thư viện Frontend** ✅ ĐÃ XONG:
+   - Đã chạy `npm install`, thư mục `node_modules` đã có. (Nếu clone mới về thì vẫn cần chạy lại `npm install`.)
 3. **Cấu hình Gemini API Key** ✅ ĐÃ SỬA:
    - API key đặt trong `appsettings.Development.json` (gitignored, không commit). `appsettings.json` giữ placeholder trống. `AiService` đã hỗ trợ fallback mock mode khi không có key.
