@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
-import { Button, Modal, Form, Input, message, ConfigProvider } from 'antd';
+import { Button, Modal, Form, Input, message } from 'antd';
 import { PlusOutlined, LogoutOutlined, CommentOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
@@ -34,10 +34,7 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
   const handleCreateRoom = async (values: any) => {
     setLoading(true);
     try {
-      const response = await api.post('/rooms', {
-        name: values.name,
-        description: values.description
-      });
+      const response = await api.post('/rooms', { name: values.name, description: values.description });
       message.success('Tạo phòng thành công!');
       onRoomCreated(response.data);
       setIsModalOpen(false);
@@ -50,33 +47,16 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
     }
   };
 
+  const initials = username.slice(0, 2).toUpperCase();
+
   return (
-    <div style={{
-      width: '260px',
-      backgroundColor: '#0f172a',
-      borderRight: '1px solid #1e293b',
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      fontFamily: 'monospace'
-    }}>
+    <div style={{ width: '260px', backgroundColor: 'var(--bg-elevated)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div style={{
-        padding: '16px',
-        borderBottom: '1px solid #1e293b',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <span style={{ color: '#a3e635', fontWeight: 'bold', fontSize: '15px' }}>
-          // CHANNELS_SYS
+      <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '16px', fontFamily: "'Outfit', sans-serif" }}>
+          Phòng chat
         </span>
-        <Button
-          type="text"
-          icon={<PlusOutlined style={{ color: '#a3e635' }} />}
-          onClick={() => setIsModalOpen(true)}
-          style={{ borderRadius: 0 }}
-        />
+        <Button type="text" icon={<PlusOutlined style={{ color: 'var(--primary)' }} />} onClick={() => setIsModalOpen(true)} />
       </div>
 
       {/* Room List */}
@@ -90,32 +70,21 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
               style={{
                 padding: '10px 12px',
                 cursor: 'pointer',
-                backgroundColor: isActive ? '#1e293b' : 'transparent',
-                borderLeft: isActive ? '3px solid #a3e635' : '3px solid transparent',
-                color: isActive ? '#a3e635' : '#94a3b8',
+                backgroundColor: isActive ? 'var(--primary-soft)' : 'transparent',
+                borderLeft: isActive ? '3px solid var(--primary)' : '3px solid transparent',
+                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
                 marginBottom: '4px',
-                transition: 'all 0.2s ease',
+                borderRadius: 8,
+                transition: 'all 0.15s ease',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px'
               }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.color = '#fff';
-                  e.currentTarget.style.backgroundColor = '#1e293b50';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.color = '#94a3b8';
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
             >
               <CommentOutlined />
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <div style={{ fontWeight: isActive ? 'bold' : 'normal', fontSize: '13px' }}>#{room.name}</div>
-                <div style={{ fontSize: '10px', color: '#64748b' }}>{room.description || 'No description'}</div>
+                <div style={{ fontWeight: isActive ? 600 : 400, fontSize: '14px' }}># {room.name}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{room.description || 'Không có mô tả'}</div>
               </div>
             </div>
           );
@@ -123,120 +92,41 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
       </div>
 
       {/* Footer Profile */}
-      <div style={{
-        padding: '16px',
-        borderTop: '1px solid #1e293b',
-        backgroundColor: '#0b0f19',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '8px' }}>
-          <div style={{ fontSize: '11px', color: '#64748b' }}>CONNECTED_AS</div>
-          <div style={{ color: '#fff', fontWeight: 'bold', fontSize: '13px' }}>{username}</div>
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+          <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary-soft)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+            {initials}
+          </span>
+          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Đang đăng nhập</div>
+            <div style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '13px' }}>{username}</div>
+          </div>
         </div>
-        <Button
-          type="text"
-          danger
-          icon={<LogoutOutlined />}
-          onClick={onLogout}
-          style={{ borderRadius: 0 }}
-        />
+        <Button type="text" danger icon={<LogoutOutlined />} onClick={onLogout} />
       </div>
 
       {/* Create Room Modal */}
-      <ConfigProvider
-        theme={{
-          token: {
-            colorBgElevated: '#0f172a',
-            colorTextHeading: '#a3e635',
-            colorText: '#fff',
-            borderRadiusLG: 0,
-          }
-        }}
+      <Modal
+        title="Tạo phòng mới"
+        open={isModalOpen}
+        onCancel={() => setIsModalOpen(false)}
+        footer={null}
       >
-        <Modal
-          title={<span style={{ color: '#a3e635', fontFamily: 'monospace' }}>// CREATE_NEW_CHANNEL</span>}
-          open={isModalOpen}
-          onCancel={() => setIsModalOpen(false)}
-          footer={null}
-          style={{ border: '1px solid #334155', borderRadius: 0, padding: 0 }}
-          styles={{
-            mask: { backgroundColor: 'rgba(0, 0, 0, 0.8)' }
-          }}
-        >
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleCreateRoom}
-            style={{ marginTop: '16px' }}
-          >
-            <Form.Item
-              label={<span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>CHANNEL_NAME</span>}
-              name="name"
-              rules={[{ required: true, message: 'Nhập tên phòng!' }]}
-            >
-              <Input
-                placeholder="e.g. dotnet-discussion"
-                style={{
-                  backgroundColor: '#1e293b',
-                  borderColor: '#475569',
-                  color: '#fff',
-                  borderRadius: 0,
-                  fontFamily: 'monospace'
-                }}
-              />
-            </Form.Item>
+        <Form form={form} layout="vertical" onFinish={handleCreateRoom} style={{ marginTop: '16px' }}>
+          <Form.Item label="Tên phòng" name="name" rules={[{ required: true, message: 'Nhập tên phòng!' }]}>
+            <Input placeholder="VD: thảo luận .NET" />
+          </Form.Item>
 
-            <Form.Item
-              label={<span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>DESCRIPTION</span>}
-              name="description"
-            >
-              <Input
-                placeholder="Room description..."
-                style={{
-                  backgroundColor: '#1e293b',
-                  borderColor: '#475569',
-                  color: '#fff',
-                  borderRadius: 0,
-                  fontFamily: 'monospace'
-                }}
-              />
-            </Form.Item>
+          <Form.Item label="Mô tả" name="description">
+            <Input placeholder="Mô tả ngắn về phòng…" />
+          </Form.Item>
 
-            <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: 0 }}>
-              <Button
-                onClick={() => setIsModalOpen(false)}
-                style={{
-                  backgroundColor: 'transparent',
-                  borderColor: '#475569',
-                  color: '#94a3b8',
-                  borderRadius: 0,
-                  fontFamily: 'monospace',
-                  marginRight: '8px'
-                }}
-              >
-                CANCEL
-              </Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={loading}
-                style={{
-                  backgroundColor: '#a3e635',
-                  borderColor: '#a3e635',
-                  color: '#000',
-                  borderRadius: 0,
-                  fontWeight: 'bold',
-                  fontFamily: 'monospace'
-                }}
-              >
-                INITIALIZE
-              </Button>
-            </Form.Item>
-          </Form>
-        </Modal>
-      </ConfigProvider>
+          <Form.Item style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 0 }}>
+            <Button onClick={() => setIsModalOpen(false)} style={{ marginRight: '8px' }}>Huỷ</Button>
+            <Button type="primary" htmlType="submit" loading={loading}>Tạo phòng</Button>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };
