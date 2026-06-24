@@ -47,6 +47,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
+  // Giữ bản tham chiếu users mới nhất để callback mở-profile-theo-tên ổn định
+  // (không tạo lại khi presence cập nhật), nhờ đó React.memo của MessageBubble giữ hiệu lực.
+  const usersRef = useRef(users);
+  useEffect(() => { usersRef.current = users; }, [users]);
+
   const handleOpenProfile = useCallback((userId: number) => {
     setProfileUserId(userId);
     setIsProfileOpen(true);
@@ -75,11 +80,6 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
 
   const messageEndRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
-
-  // Giữ bản tham chiếu users mới nhất để callback mở-profile-theo-tên ổn định
-  // (không tạo lại khi presence cập nhật), nhờ đó React.memo của MessageBubble giữ hiệu lực.
-  const usersRef = useRef(users);
-  useEffect(() => { usersRef.current = users; }, [users]);
 
   // 1. Tải danh sách phòng từ API
   const fetchRooms = async () => {
