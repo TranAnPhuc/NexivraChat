@@ -1,3 +1,49 @@
+:root[data-theme="light"] {
+  --bg-canvas: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F1F5F9;
+  --border: #E2E8F0;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --primary: #0D9488;
+  --primary-hover: #0F766E;
+  --primary-soft: #F0FDFA;
+  --primary-on: #FFFFFF;
+  --secondary: #0891B2;
+  --accent: #F97316;
+  --bubble-me: #0D9488;
+  --bubble-me-text: #FFFFFF;
+  --bubble-other: #FFFFFF;
+  --bubble-other-text: #0F172A;
+  --bubble-ai-bg: #F0FDFA;
+  --bubble-ai-border: #99F6E4;
+  --bubble-ai-text: #134E4A;
+}
+
+:root[data-theme="dark"] {
+  --bg-canvas: #0B1220;
+  --bg-surface: #111827;
+  --bg-elevated: #1E293B;
+  --border: #1E293B;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --primary: #14B8A6;
+  --primary-hover: #0D9488;
+  --primary-soft: #134E4A;
+  --primary-on: #FFFFFF;
+  --secondary: #22D3EE;
+  --accent: #FB923C;
+  --bubble-me: #0D9488;
+  --bubble-me-text: #FFFFFF;
+  --bubble-other: #1E293B;
+  --bubble-other-text: #F1F5F9;
+  --bubble-ai-bg: #134E4A;
+  --bubble-ai-border: #0D9488;
+  --bubble-ai-text: #CCFBF1;
+}
+
 html,
 body,
 #root {
@@ -5,45 +51,37 @@ body,
   padding: 0;
   width: 100vw;
   height: 100vh;
-  background-color: #0a0f1d;
-  color: #f8fafc;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow: hidden;
 }
 
-/* Tùy chỉnh thanh cuộn mang phong cách console */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0f1d;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: var(--border);
+  border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a3e635;
-  border-color: #a3e635;
+  background: var(--text-muted);
 }
 
-/* Hiệu ứng nhấp nháy chữ AI đang gõ */
-@keyframes pulse-glow {
-  0%, 100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-    color: #a3e635;
-    text-shadow: 0 0 5px rgba(163, 230, 53, 0.5);
-  }
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .copilot-loading {
-  animation: pulse-glow 1.2s infinite;
-  font-size: 12px;
+  animation: pulse-soft 1.2s infinite;
+  font-size: 13px;
+  color: var(--primary);
 }

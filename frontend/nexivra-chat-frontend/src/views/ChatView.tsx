@@ -3,11 +3,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useRef } from 'react';
 import { Input, Button, message } from 'antd';
-import { SendOutlined } from '@ant-design/icons';
+import { SendOutlined, RobotOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { API_BASE_URL } from '../services/api';
 import { RoomSidebar, type Room } from '../components/RoomSidebar';
 import { CopilotPanel } from '../components/CopilotPanel';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 export interface Message {
   id: number;
@@ -260,14 +261,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const activeRoom = rooms.find((r) => r.id === activeRoomId);
 
   return (
-    <div style={{
-      display: 'flex',
-      height: '100vh',
-      width: '100vw',
-      backgroundColor: '#0a0f1d',
-      overflow: 'hidden'
-    }}>
-      {/* 1. Sidebar bên trái: Danh sách phòng */}
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: 'var(--bg-canvas)', overflow: 'hidden' }}>
       <RoomSidebar
         rooms={rooms}
         activeRoomId={activeRoomId}
@@ -277,136 +271,64 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         username={username}
       />
 
-      {/* 2. Khung chat ở giữa */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        backgroundColor: '#0a0f1d',
-        position: 'relative'
-      }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-surface)', position: 'relative' }}>
         {/* Room Header */}
-        <div style={{
-          padding: '16px 20px',
-          borderBottom: '1px solid #1e293b',
-          backgroundColor: '#0f172a',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <span style={{ color: '#a3e635', fontWeight: 'bold', fontSize: '15px', fontFamily: 'monospace' }}>
-              #{activeRoom ? activeRoom.name : 'NO_ROOM_SELECTED'}
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '16px', fontFamily: "'Outfit', sans-serif" }}>
+              {activeRoom ? `# ${activeRoom.name}` : 'Chưa chọn phòng'}
             </span>
-            <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', marginTop: '2px' }}>
-              {activeRoom ? activeRoom.description : 'Please select a room to start discussions.'}
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              {activeRoom ? activeRoom.description : 'Chọn một phòng để bắt đầu trò chuyện'}
             </div>
             {activeRoom && (
-              <div
-                style={{ fontSize: '11px', color: '#a3e635', fontFamily: 'monospace', marginTop: '2px' }}
-                title={onlineUsers.join(', ')}
-              >
-                ● {onlineUsers.length} online{onlineUsers.length > 0 ? `: ${onlineUsers.join(', ')}` : ''}
+              <div style={{ fontSize: '12px', color: 'var(--primary)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '5px' }} title={onlineUsers.join(', ')}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)' }} />
+                {onlineUsers.length} người đang online{onlineUsers.length > 0 ? `: ${onlineUsers.join(', ')}` : ''}
               </div>
             )}
           </div>
+          <ThemeToggle />
         </div>
 
         {/* Floating Notification Banner */}
-        <div style={{
-          position: 'absolute',
-          top: '70px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px',
-          pointerEvents: 'none'
-        }}>
+        <div style={{ position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '4px', pointerEvents: 'none' }}>
           {notifications.map((notif, idx) => (
-            <div
-              key={idx}
-              style={{
-                backgroundColor: '#1e293bca',
-                border: '1px solid #a3e63550',
-                color: '#a3e635',
-                padding: '6px 16px',
-                fontSize: '11px',
-                fontFamily: 'monospace',
-                boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
-              }}
-            >
+            <div key={idx} style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '6px 16px', fontSize: '12px', borderRadius: 8, boxShadow: '0 4px 10px rgba(0,0,0,0.08)' }}>
               {notif}
             </div>
           ))}
         </div>
 
         {/* Message Area */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px'
-        }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: 'var(--bg-canvas)' }}>
           {messages.length === 0 ? (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: '100%',
-              color: '#475569',
-              fontFamily: 'monospace',
-              fontSize: '12px'
-            }}>
-              // NO_MESSAGES_YET - START_THE_CONVERSATION
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '14px' }}>
+              Chưa có tin nhắn — hãy bắt đầu trò chuyện 👋
             </div>
           ) : (
             messages.map((msg) => {
               const isMe = msg.senderName === username;
               const isAi = msg.isAi;
               return (
-                <div
-                  key={msg.id}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignSelf: isMe ? 'flex-end' : 'flex-start',
-                    maxWidth: '70%',
-                    alignItems: isMe ? 'flex-end' : 'flex-start'
-                  }}
-                >
-                  {/* Sender Name and Time */}
-                  <div style={{
-                    fontSize: '10px',
-                    color: isAi ? '#a3e635' : '#64748b',
-                    fontFamily: 'monospace',
-                    marginBottom: '4px',
-                    display: 'flex',
-                    gap: '8px'
-                  }}>
-                    <span>{msg.senderName}</span>
-                    <span>[{new Date(msg.createdAt).toLocaleTimeString()}]</span>
+                <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '74%', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ fontSize: '11px', color: isAi ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {isAi && <RobotOutlined />}
+                    <span>{isAi ? 'Trợ lý AI' : msg.senderName}</span>
+                    <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
                   </div>
-
-                  {/* Message Bubble */}
                   <div style={{
-                    padding: '10px 14px',
-                    backgroundColor: isMe ? '#a3e635' : isAi ? '#0f172a' : '#1e293b',
-                    color: isMe ? '#000' : '#f8fafc',
-                    border: isAi ? '1px solid #a3e635' : '1px solid transparent',
-                    borderRadius: 0,
-                    fontSize: '13px',
+                    padding: '9px 13px',
+                    backgroundColor: isMe ? 'var(--bubble-me)' : isAi ? 'var(--bubble-ai-bg)' : 'var(--bubble-other)',
+                    color: isMe ? 'var(--bubble-me-text)' : isAi ? 'var(--bubble-ai-text)' : 'var(--bubble-other-text)',
+                    border: isAi ? '1px solid var(--bubble-ai-border)' : isMe ? 'none' : '1px solid var(--border)',
+                    borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                    fontSize: '14px',
                     lineHeight: '1.5',
-                    fontFamily: isAi ? 'monospace' : 'sans-serif',
                     whiteSpace: 'pre-wrap',
-                    boxShadow: isAi ? '0 0 8px rgba(163, 230, 53, 0.1)' : 'none'
                   }}>
                     {msg.content === '' && isAi ? (
-                      <span className="copilot-loading">Copilot đang phản hồi...</span>
+                      <span className="copilot-loading">Trợ lý AI đang phản hồi…</span>
                     ) : (
                       msg.content
                     )}
@@ -415,62 +337,28 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               );
             })
           )}
+          {typingUsers.length > 0 && (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              {typingUsers.join(', ')} đang gõ…
+            </div>
+          )}
           <div ref={messageEndRef} />
         </div>
 
-        {/* Typing Indicator */}
-        {typingUsers.length > 0 && (
-          <div style={{
-            padding: '4px 20px',
-            fontSize: '11px',
-            color: '#a3e635',
-            fontFamily: 'monospace',
-            fontStyle: 'italic'
-          }}>
-            {typingUsers.join(', ')} đang gõ...
-          </div>
-        )}
-
-        {/* Input Message Area */}
-        <div style={{
-          padding: '16px 20px',
-          borderTop: '1px solid #1e293b',
-          backgroundColor: '#0f172a',
-          display: 'flex',
-          gap: '10px'
-        }}>
+        {/* Input Area */}
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', gap: '10px' }}>
           <Input
             value={inputText}
             onChange={(e) => handleInputChange(e.target.value)}
             onPressEnter={() => handleSendMessage()}
-            placeholder="Type a message... (Use @copilot to query AI Assistant)"
-            style={{
-              backgroundColor: '#1e293b',
-              borderColor: '#475569',
-              color: '#fff',
-              borderRadius: 0,
-              fontFamily: 'monospace'
-            }}
+            placeholder="Nhập tin nhắn… (gõ @copilot để hỏi AI)"
           />
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={() => handleSendMessage()}
-            style={{
-              backgroundColor: '#a3e635',
-              borderColor: '#a3e635',
-              color: '#000',
-              borderRadius: 0,
-              fontWeight: 'bold',
-              fontFamily: 'monospace'
-            }}
-          >
-            SEND
+          <Button type="primary" icon={<SendOutlined />} onClick={() => handleSendMessage()} style={{ fontWeight: 500 }}>
+            Gửi
           </Button>
         </div>
       </div>
 
-      {/* 3. Panel bên phải: Trợ lý AI */}
       <CopilotPanel onTriggerCommand={handleSendMessage} />
     </div>
   );
