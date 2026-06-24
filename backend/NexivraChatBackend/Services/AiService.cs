@@ -37,7 +37,7 @@ namespace NexivraChatBackend.Services
                 yield break;
             }
 
-            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key={_apiKey}";
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key={_apiKey}";
             
             var requestBody = new
             {
@@ -79,42 +79,39 @@ namespace NexivraChatBackend.Services
                 using (var stream = await response.Content.ReadAsStreamAsync())
                 using (var reader = new StreamReader(stream))
                 {
-                    while (!reader.EndOfStream)
+                    // Định dạng SSE (alt=sse): mỗi sự kiện là một dòng "data: {json hoàn chỉnh}",
+                    // các sự kiện cách nhau bằng dòng trống. Mỗi payload là một JSON parse được ngay.
+                    string? line;
+                    while ((line = await reader.ReadLineAsync()) != null)
                     {
-                        var line = await reader.ReadLineAsync();
-                        if (string.IsNullOrEmpty(line)) continue;
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+                        if (!line.StartsWith("data:")) continue;
 
-                        var cleanLine = line.Trim();
-                        // Dọn dẹp JSON stream format từ Gemini
-                        if (cleanLine.StartsWith("[")) cleanLine = cleanLine.Substring(1);
-                        if (cleanLine.EndsWith("]")) cleanLine = cleanLine.Substring(0, cleanLine.Length - 1);
-                        if (cleanLine.StartsWith(",")) cleanLine = cleanLine.Substring(1);
-                        cleanLine = cleanLine.Trim();
-
-                        if (string.IsNullOrEmpty(cleanLine)) continue;
+                        var payload = line.Substring("data:".Length).Trim();
+                        if (string.IsNullOrEmpty(payload) || payload == "[DONE]") continue;
 
                         string? textChunk = null;
                         try
                         {
-                            using (var doc = JsonDocument.Parse(cleanLine))
+                            using (var doc = JsonDocument.Parse(payload))
                             {
                                 var root = doc.RootElement;
-                                if (root.TryGetProperty("candidates", out var candidates) && 
-                                    candidates.ValueKind == JsonValueKind.Array && 
-                                    candidates.GetArrayLength() > 0)
+                                if (root.TryGetProperty("candidates", out var candidates) &&
+                                    candidates.ValueKind == JsonValueKind.Array &&
+                                    candidates.GetArrayLength() > 0 &&
+                                    candidates[0].TryGetProperty("content", out var contentElement) &&
+                                    contentElement.TryGetProperty("parts", out var parts) &&
+                                    parts.ValueKind == JsonValueKind.Array &&
+                                    parts.GetArrayLength() > 0 &&
+                                    parts[0].TryGetProperty("text", out var textProp))
                                 {
-                                    var contentElement = candidates[0].GetProperty("content");
-                                    var parts = contentElement.GetProperty("parts");
-                                    if (parts.ValueKind == JsonValueKind.Array && parts.GetArrayLength() > 0)
-                                    {
-                                        textChunk = parts[0].GetProperty("text").GetString();
-                                    }
+                                    textChunk = textProp.GetString();
                                 }
                             }
                         }
                         catch
                         {
-                            // Bỏ qua các dòng format json ko hoàn chỉnh trong stream
+                            // Bỏ qua chunk JSON không hợp lệ (hiếm gặp trong SSE)
                         }
 
                         if (!string.IsNullOrEmpty(textChunk))
