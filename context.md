@@ -9,7 +9,13 @@ Tài liệu này cung cấp cái nhìn toàn diện về cấu trúc thư mục,
 Hệ thống được xây dựng trên mô hình Client-Server tách biệt:
 - **Backend**: .NET 8 Web API, SignalR Hub quản lý kết nối thời gian thực.
 - **Database**: PostgreSQL kết hợp **Dapper** (truy vấn SQL thuần, tuyệt đối không dùng EF Core).
-- **Frontend**: React 19, TypeScript, Ant Design (antd) làm UI system, tuân thủ không dùng màu tím (Purple Ban).
+- **Frontend**: React 19, TypeScript, Ant Design (antd) làm UI system.
+  - **Giao diện**: Thiết kế kiểu PipelinePro với nền sáng mặc định + chế độ tối (light/dark), màu chính teal `#0D9488`.
+  - **Font chữ**: Inter cho nội dung, Outfit cho tiêu đề (tải từ Google Fonts).
+  - **Styling**: Bo góc mềm, CSS variables (token) ở `src/index.css` với `:root[data-theme="light"|"dark"]` cho theme consistency.
+  - **Theme Control**: `ThemeContext` + nút `ThemeToggle`, lưu tùy chọn vào `localStorage` (key `nexivra-theme`).
+  - **antd Integration**: `ConfigProvider` đồng bộ màu component (colorPrimary teal + light/dark algorithm).
+  - **Ghi chú**: Tuân thủ không dùng màu tím (Purple Ban) — màu chính là teal, không phải indigo.
 - **AI Integration**: Gemini API (`gemini-2.5-flash`) truyền dữ liệu dạng streaming qua SignalR.
 
 ---
@@ -51,16 +57,20 @@ NexivraChat/
 │   └── nexivra-chat-frontend/
 │       ├── src/
 │       │   ├── components/
-│       │   │   ├── CopilotPanel.tsx       # Bảng công cụ AI (Tóm tắt phòng chat, Gợi ý chủ đề, Giải nghĩa thuật ngữ).
-│       │   │   └── RoomSidebar.tsx        # Danh sách phòng chat, tạo phòng mới, thông tin user và nút đăng xuất.
+│       │   │   ├── CopilotPanel.tsx       # Bảng công cụ AI với giao diện PipelinePro (Tóm tắt phòng chat, Gợi ý chủ đề, Giải nghĩa thuật ngữ), nội dung Việt thân thiện.
+│       │   │   ├── RoomSidebar.tsx        # Danh sách phòng chat, tạo phòng mới, thông tin user và nút đăng xuất, hỗ trợ light/dark, nội dung Việt.
+│       │   │   └── ThemeToggle.tsx        # Nút bóng đèn ở header để chuyển đổi giữa light/dark theme.
+│       │   ├── theme/
+│       │   │   └── ThemeContext.tsx       # Context provider cho theme management, hook `useTheme`, hàm `getInitialTheme`, lưu preference vào localStorage.
 │       │   ├── views/
-│       │   │   ├── LoginView.tsx          # Màn hình đăng nhập/đăng ký giao diện tối phong cách Terminal.
-│       │   │   └── ChatView.tsx           # Giao diện chính kết nối SignalR Client, hiển thị tin nhắn, stream AI, online count, typing indicator và gửi chat.
+│       │   │   ├── LoginView.tsx          # Màn hình đăng nhập/đăng ký thiết kế PipelinePro (teal primary, Inter/Outfit font), nội dung Việt.
+│       │   │   └── ChatView.tsx           # Giao diện chính kết nối SignalR Client, hiển thị tin nhắn, stream AI, online count, typing indicator, hỗ trợ light/dark, nội dung Việt.
 │       │   ├── services/
 │       │   │   └── api.ts                 # Cấu hình Axios, tự động đính kèm JWT Token vào Header của các yêu cầu API.
-│       │   ├── App.tsx                    # Quản lý trạng thái đăng nhập toàn cục và điều phối hiển thị LoginView / ChatView.
-│       │   ├── index.css                  # Style CSS cơ bản và cấu hình thanh cuộn console.
-│       │   └── main.tsx                   # Điểm khởi đầu của ứng dụng React.
+│       │   ├── App.tsx                    # Quản lý trạng thái đăng nhập, ThemeProvider + antd ConfigProvider (colorPrimary teal + light/dark algorithm).
+│       │   ├── index.css                  # CSS variables (token) cho design system PipelinePro, color, typography, `:root[data-theme="light"|"dark"]`.
+│       │   └── main.tsx                   # Điểm khởi đầu React, set `data-theme` attribute trước render, nạp Google Fonts (Inter/Outfit).
+│       ├── index.html                     # Nạp Google Fonts (Inter/Outfit), meta viewport, root div.
 │       ├── package.json                   # Các gói phụ thuộc (antd, @microsoft/signalr, axios, vite).
 │       └── vite.config.ts                 # Cấu hình Vite.
 ```
