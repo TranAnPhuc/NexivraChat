@@ -66,6 +66,16 @@ namespace NexivraChatBackend.Data
                 connection.Execute(createMessagesTable);
                 connection.Execute(createUserProfilesTable);
 
+                // 6. Tạo index tối ưu truy vấn lịch sử tin nhắn (idempotent)
+                var createMessageIndexes = @"
+                    CREATE INDEX IF NOT EXISTS idx_messages_room_created
+                        ON messages (room_id, created_at);
+                    CREATE INDEX IF NOT EXISTS idx_messages_private_created
+                        ON messages (private_chat_id, created_at);
+                    CREATE INDEX IF NOT EXISTS idx_messages_sender
+                        ON messages (sender_name);";
+                connection.Execute(createMessageIndexes);
+
                 // 4. Seed phòng mặc định nếu rỗng
                 var checkRooms = "SELECT COUNT(*) FROM chat_rooms";
                 var roomCount = connection.ExecuteScalar<int>(checkRooms);
