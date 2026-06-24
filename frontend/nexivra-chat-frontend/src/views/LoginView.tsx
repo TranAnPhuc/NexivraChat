@@ -4,6 +4,7 @@ import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { Logo } from '../components/Logo';
 
 interface LoginViewProps {
   onLoginSuccess: (username: string, token: string) => void;
@@ -50,12 +51,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         <ThemeToggle />
       </div>
 
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <img
-          src="/logo.svg"
-          alt="NexivraChat"
-          style={{ width: 300, borderRadius: 12 }}
-        />
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+        <Logo height={44} />
       </div>
 
       <Card
