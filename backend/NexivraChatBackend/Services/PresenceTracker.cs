@@ -75,5 +75,33 @@ namespace NexivraChatBackend.Services
                 return new string[0];
             }
         }
+
+        // Global presence tracking
+        private readonly Dictionary<string, string> _globalConnections 
+            = new Dictionary<string, string>();
+
+        public void AddGlobalConnection(string connectionId, string username)
+        {
+            lock (_lock)
+            {
+                _globalConnections[connectionId] = username;
+            }
+        }
+
+        public void RemoveGlobalConnection(string connectionId)
+        {
+            lock (_lock)
+            {
+                _globalConnections.Remove(connectionId);
+            }
+        }
+
+        public string[] GetGlobalOnlineUsers()
+        {
+            lock (_lock)
+            {
+                return _globalConnections.Values.Distinct().OrderBy(u => u).ToArray();
+            }
+        }
     }
 }

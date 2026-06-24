@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { Button, Modal, Form, Input, message } from 'antd';
-import { PlusOutlined, LogoutOutlined, CommentOutlined } from '@ant-design/icons';
+import { PlusOutlined, LogoutOutlined, CommentOutlined, UserOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import { Logo } from './Logo';
 
@@ -11,22 +11,38 @@ export interface Room {
   description: string;
 }
 
+export interface SidebarUser {
+  id: number;
+  username: string;
+  isOnline?: boolean;
+}
+
 interface RoomSidebarProps {
   rooms: Room[];
+  users: SidebarUser[];
   activeRoomId: number | null;
+  activePrivateChatId: number | null;
+  activeChatType: 'room' | 'private';
   onSelectRoom: (roomId: number) => void;
+  onSelectUser: (userId: number) => void;
   onRoomCreated: (newRoom: Room) => void;
   onLogout: () => void;
   username: string;
+  onOpenProfile: (userId: number) => void;
 }
 
 export const RoomSidebar: React.FC<RoomSidebarProps> = ({
   rooms,
+  users,
   activeRoomId,
+  activePrivateChatId,
+  activeChatType,
   onSelectRoom,
+  onSelectUser,
   onRoomCreated,
   onLogout,
-  username
+  username,
+  onOpenProfile
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -60,46 +76,102 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
       {/* Header */}
       <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '14px', fontFamily: "'Outfit', sans-serif" }}>
-          Phòng chat
+          Hội thoại
         </span>
-        <Button type="text" icon={<PlusOutlined style={{ color: 'var(--primary)' }} />} onClick={() => setIsModalOpen(true)} />
+        <Button type="text" icon={<PlusOutlined style={{ color: 'var(--primary)' }} />} onClick={() => setIsModalOpen(true)} title="Tạo phòng mới" />
       </div>
 
-      {/* Room List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-        {rooms.map((room) => {
-          const isActive = room.id === activeRoomId;
-          return (
-            <div
-              key={room.id}
-              onClick={() => onSelectRoom(room.id)}
-              style={{
-                padding: '10px 12px',
-                cursor: 'pointer',
-                backgroundColor: isActive ? 'var(--primary-soft)' : 'transparent',
-                borderLeft: isActive ? '3px solid var(--primary)' : '3px solid transparent',
-                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
-                marginBottom: '4px',
-                borderRadius: 8,
-                transition: 'all 0.15s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              <CommentOutlined />
-              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <div style={{ fontWeight: isActive ? 600 : 400, fontSize: '14px' }}># {room.name}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{room.description || 'Không có mô tả'}</div>
+      {/* Lists (Rooms & Users) */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Rooms Section */}
+        <div>
+          <div style={{ padding: '0 12px 8px 12px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Kênh chat
+          </div>
+          {rooms.map((room) => {
+            const isActive = activeChatType === 'room' && room.id === activeRoomId;
+            return (
+              <div
+                key={room.id}
+                onClick={() => onSelectRoom(room.id)}
+                style={{
+                  padding: '9px 12px',
+                  cursor: 'pointer',
+                  backgroundColor: isActive ? 'var(--primary-soft)' : 'transparent',
+                  borderLeft: isActive ? '3px solid var(--primary)' : '3px solid transparent',
+                  color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                  marginBottom: '4px',
+                  borderRadius: 8,
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <CommentOutlined />
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontWeight: isActive ? 600 : 400, fontSize: '13px' }}># {room.name}</div>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        {/* Users Section */}
+        <div>
+          <div style={{ padding: '0 12px 8px 12px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Tin nhắn riêng
+          </div>
+          {users.map((u) => {
+            const isActive = activeChatType === 'private' && u.id === activePrivateChatId;
+            return (
+              <div
+                key={u.id}
+                onClick={() => onSelectUser(u.id)}
+                style={{
+                  padding: '9px 12px',
+                  cursor: 'pointer',
+                  backgroundColor: isActive ? 'var(--primary-soft)' : 'transparent',
+                  borderLeft: isActive ? '3px solid var(--primary)' : '3px solid transparent',
+                  color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                  marginBottom: '4px',
+                  borderRadius: 8,
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                  <UserOutlined />
+                  <span style={{ fontWeight: isActive ? 600 : 400, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {u.username}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    backgroundColor: u.isOnline ? 'var(--primary)' : 'var(--text-muted)',
+                    display: 'inline-block',
+                    flexShrink: 0
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Footer Profile */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+        <div 
+          onClick={() => onOpenProfile(0)}
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', cursor: 'pointer' }}
+          title="Xem hồ sơ của bạn"
+        >
           <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary-soft)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
             {initials}
           </span>

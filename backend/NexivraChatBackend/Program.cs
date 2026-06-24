@@ -18,10 +18,13 @@ builder.Services.AddSingleton<DapperContext>();
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<RoomRepository>();
 builder.Services.AddScoped<MessageRepository>();
+builder.Services.AddScoped<PrivateChatRepository>();
+builder.Services.AddScoped<ProfileRepository>();
 
 // 3. Đăng ký các Services phụ trợ
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AiService>();
+builder.Services.AddScoped<TranslationService>();
 
 // 4. Cấu hình JWT Authentication
 var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "DefaultSuperSecretKey1234567890123456";

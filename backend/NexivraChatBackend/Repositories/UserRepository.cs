@@ -23,6 +23,15 @@ namespace NexivraChatBackend.Repositories
             }
         }
 
+        public List<User> GetAll()
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                var query = "SELECT id, username, created_at AS CreatedAt FROM users ORDER BY username ASC";
+                return connection.Query<User>(query).ToList();
+            }
+        }
+
         public void Create(User user)
         {
             using (var connection = _context.CreateConnection())
