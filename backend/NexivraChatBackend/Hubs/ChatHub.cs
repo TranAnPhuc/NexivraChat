@@ -129,7 +129,7 @@ namespace NexivraChatBackend.Hubs
                 }
 
                 // 4. Tạo tin nhắn AI tạm thời (giá trị ID âm để tránh trùng lặp)
-                var tempAiMessageId = -1 * new Random().Next(1, 1000000);
+                var tempAiMessageId = TempMessageId.Next();
                 var aiPlaceholder = new Message
                 {
                     Id = tempAiMessageId,
