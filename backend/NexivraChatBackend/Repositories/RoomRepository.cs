@@ -19,7 +19,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT * FROM chat_rooms ORDER BY name ASC";
+                var query = "SELECT id, name, description FROM chat_rooms ORDER BY name ASC";
                 return connection.Query<ChatRoom>(query).ToList();
             }
         }
@@ -28,7 +28,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT * FROM chat_rooms WHERE id = @id LIMIT 1";
+                var query = "SELECT id, name, description FROM chat_rooms WHERE id = @id LIMIT 1";
                 return connection.QueryFirstOrDefault<ChatRoom>(query, new { id });
             }
         }

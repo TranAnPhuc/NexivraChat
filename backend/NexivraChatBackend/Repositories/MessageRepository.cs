@@ -21,7 +21,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT * FROM messages ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
+                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
                 return connection.Query<Message>(query, new { limit, offset }).ToList();
             }
         }
@@ -30,7 +30,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT * FROM messages WHERE room_id = @roomId ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
+                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE room_id = @roomId ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
                 var result = connection.Query<Message>(query, new { roomId, limit, offset }).ToList();
                 result.Reverse(); // Trả về theo thứ tự thời gian tăng dần
                 return result;
@@ -41,7 +41,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT * FROM messages WHERE private_chat_id = @privateChatId ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
+                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE private_chat_id = @privateChatId ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
                 var result = connection.Query<Message>(query, new { privateChatId, limit, offset }).ToList();
                 result.Reverse(); // Trả về theo thứ tự thời gian tăng dần
                 return result;
@@ -74,7 +74,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT * FROM messages WHERE sender_name = @senderName AND is_ai = false ORDER BY created_at DESC LIMIT @limit";
+                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE sender_name = @senderName AND is_ai = false ORDER BY created_at DESC LIMIT @limit";
                 return connection.Query<Message>(query, new { senderName, limit }).ToList();
             }
         }

@@ -19,7 +19,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT * FROM user_profiles WHERE user_id = @userId LIMIT 1";
+                var query = "SELECT user_id, bio, native_language, ai_analysis_json, last_analyzed_at FROM user_profiles WHERE user_id = @userId LIMIT 1";
                 return connection.QueryFirstOrDefault<UserProfile>(query, new { userId });
             }
         }

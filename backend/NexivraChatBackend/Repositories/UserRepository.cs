@@ -18,7 +18,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT * FROM users WHERE username = @username LIMIT 1";
+                var query = "SELECT id, username, password_hash, created_at FROM users WHERE username = @username LIMIT 1";
                 return connection.QueryFirstOrDefault<User>(query, new { username });
             }
         }
