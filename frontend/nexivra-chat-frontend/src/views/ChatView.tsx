@@ -62,6 +62,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const prevRoomRef = useRef<number | null>(null);
 
   const messageEndRef = useRef<HTMLDivElement>(null);
+  const prevMessageCountRef = useRef(0);
 
   // 1. Tải danh sách phòng từ API
   const fetchRooms = async () => {
@@ -283,9 +284,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     };
   }, [token]);
 
-  // Tự động cuộn xuống dưới khi có tin nhắn mới
+  // Tự động cuộn xuống dưới khi có tin nhắn mới.
+  // Tin nhắn MỚI (số lượng tăng) -> cuộn mượt. Đang stream token AI
+  // (số lượng không đổi, chỉ nội dung bubble cuối cập nhật) -> cuộn tức thì
+  // để tránh hiệu ứng smooth chạy liên tục gây giật.
   useEffect(() => {
-    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const isNewMessage = messages.length !== prevMessageCountRef.current;
+    prevMessageCountRef.current = messages.length;
+    messageEndRef.current?.scrollIntoView({ behavior: isNewMessage ? 'smooth' : 'auto' });
   }, [messages]);
 
   const sendTyping = (isTyping: boolean) => {
