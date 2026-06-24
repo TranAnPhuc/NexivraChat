@@ -149,7 +149,7 @@ sequenceDiagram
     
     Note over Hub: Phát hiện tiền tố @copilot. Gọi Gemini API.
     
-    Hub->>Hub: Tạo tempAiMessageId (số âm ngẫu nhiên)
+    Hub->>Hub: Tạo tempAiMessageId (số âm tuần tự, duy nhất qua TempMessageId.Next)
     Hub->>Client: ReceiveMessage(AI Placeholder với ID âm)
     
     loop Stream token từ Gemini
