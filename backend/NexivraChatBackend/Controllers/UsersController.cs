@@ -5,6 +5,7 @@ using NexivraChatBackend.Repositories;
 using System;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace NexivraChatBackend.Controllers
 {
@@ -66,7 +67,7 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpGet("private-chat/{id}/messages")]
-        public IActionResult GetPrivateChatMessages(int id, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
+        public async Task<IActionResult> GetPrivateChatMessages(int id, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
         {
             var chat = _privateChatRepository.GetById(id);
             if (chat == null)
@@ -86,7 +87,7 @@ namespace NexivraChatBackend.Controllers
                 return Forbid();
             }
 
-            var messages = _messageRepository.GetMessagesByPrivateChat(id, limit, offset);
+            var messages = await _messageRepository.GetMessagesByPrivateChat(id, limit, offset);
             return Ok(messages);
         }
     }

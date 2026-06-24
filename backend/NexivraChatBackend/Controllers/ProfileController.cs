@@ -158,7 +158,7 @@ namespace NexivraChatBackend.Controllers
             var username = User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty;
 
             // Fetch 30 latest messages sent by this user
-            var latestMessages = _messageRepository.GetLatestMessagesBySender(username, 30);
+            var latestMessages = await _messageRepository.GetLatestMessagesBySender(username, 30);
             
             if (latestMessages.Count < 3)
             {

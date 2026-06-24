@@ -102,7 +102,7 @@ namespace NexivraChatBackend.Hubs
                 CreatedAt = DateTime.Now,
                 IsAi = false
             };
-            _messageRepository.SaveNewMessage(userMessage);
+            await _messageRepository.SaveNewMessage(userMessage);
 
             // 2. Phát tin nhắn người dùng tới toàn phòng chat
             await Clients.Group(roomString).SendAsync("ReceiveMessage", userMessage);
@@ -117,7 +117,7 @@ namespace NexivraChatBackend.Hubs
                 }
 
                 // Lấy 10 tin nhắn gần nhất làm ngữ cảnh hội thoại
-                var recentMessages = _messageRepository.GetMessagesByRoom(roomId, 10, 0);
+                var recentMessages = await _messageRepository.GetMessagesByRoom(roomId, 10, 0);
                 var conversationContext = new StringBuilder();
                 foreach (var msg in recentMessages)
                 {
@@ -163,7 +163,7 @@ namespace NexivraChatBackend.Hubs
                         CreatedAt = DateTime.Now,
                         IsAi = true
                     };
-                    _messageRepository.SaveNewMessage(finalAiMessage);
+                    await _messageRepository.SaveNewMessage(finalAiMessage);
 
                     // 7. Thông báo hoàn thành và thay thế ID âm bằng ID chính thức từ DB
                     await Clients.Group(roomString).SendAsync("ReceiveAiComplete", tempAiMessageId, finalAiMessage.Id, finalAiMessage.Content);
@@ -198,7 +198,7 @@ namespace NexivraChatBackend.Hubs
                 CreatedAt = DateTime.Now,
                 IsAi = false
             };
-            _messageRepository.SaveNewMessage(userMessage);
+            await _messageRepository.SaveNewMessage(userMessage);
 
             // 3. Phát tin nhắn riêng tư tới cả người gửi và người nhận
             await Clients.Users(senderId.ToString(), receiverId.ToString()).SendAsync("ReceivePrivateMessage", userMessage);

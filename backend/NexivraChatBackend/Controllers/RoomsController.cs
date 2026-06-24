@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NexivraChatBackend.Models;
 using NexivraChatBackend.Repositories;
+using System.Threading.Tasks;
 
 namespace NexivraChatBackend.Controllers
 {
@@ -45,7 +46,7 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpGet("{id}/messages")]
-        public IActionResult GetRoomMessages(int id, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
+        public async Task<IActionResult> GetRoomMessages(int id, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
         {
             var room = _roomRepository.GetById(id);
             if (room == null)
@@ -53,7 +54,7 @@ namespace NexivraChatBackend.Controllers
                 return NotFound("Phòng chat không tồn tại.");
             }
 
-            var messages = _messageRepository.GetMessagesByRoom(id, limit, offset);
+            var messages = await _messageRepository.GetMessagesByRoom(id, limit, offset);
             return Ok(messages);
         }
     }
