@@ -187,7 +187,7 @@ namespace NexivraChatBackend.Hubs
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
 
             // 1. Lấy hoặc tạo phòng chat 1-1
-            var privateChat = _privateChatRepository.GetOrCreate(senderId, receiverId);
+            var privateChat = await _privateChatRepository.GetOrCreate(senderId, receiverId);
 
             // 2. Lưu tin nhắn vào Database
             var userMessage = new Message

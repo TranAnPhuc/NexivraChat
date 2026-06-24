@@ -49,7 +49,7 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpPost("private-chat")]
-        public IActionResult GetOrCreatePrivateChat([FromBody] CreatePrivateChatDto dto)
+        public async Task<IActionResult> GetOrCreatePrivateChat([FromBody] CreatePrivateChatDto dto)
         {
             var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(currentUserIdStr) || !int.TryParse(currentUserIdStr, out var currentUserId))
@@ -62,14 +62,14 @@ namespace NexivraChatBackend.Controllers
                 return BadRequest("Receiver ID không hợp lệ.");
             }
 
-            var privateChat = _privateChatRepository.GetOrCreate(currentUserId, dto.ReceiverId);
+            var privateChat = await _privateChatRepository.GetOrCreate(currentUserId, dto.ReceiverId);
             return Ok(privateChat);
         }
 
         [HttpGet("private-chat/{id}/messages")]
         public async Task<IActionResult> GetPrivateChatMessages(int id, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
         {
-            var chat = _privateChatRepository.GetById(id);
+            var chat = await _privateChatRepository.GetById(id);
             if (chat == null)
             {
                 return NotFound("Cuộc hội thoại không tồn tại.");
