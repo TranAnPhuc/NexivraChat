@@ -37,6 +37,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const isTypingRef = useRef(false);
   const connectionRef = useRef<HubConnection | null>(null);
   const activeRoomIdRef = useRef<number | null>(null);
+  // Phòng đang tham gia trên hub, để Leave đúng phòng cũ khi chuyển phòng
+  const prevRoomRef = useRef<number | null>(null);
 
   const messageEndRef = useRef<HTMLDivElement>(null);
 
@@ -71,123 +73,139 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   useEffect(() => { connectionRef.current = connection; }, [connection]);
   useEffect(() => { activeRoomIdRef.current = activeRoomId; }, [activeRoomId]);
 
+  // Effect C: Đổi phòng — tải lịch sử, reset UI, và Leave/Join trên hub.
+  // KHÔNG khởi động lại kết nối, chỉ chuyển phòng. Idempotent: nếu phòng đã
+  // được join sẵn (ví dụ ngay sau khi start() resolve) thì không join lại.
   useEffect(() => {
-    if (activeRoomId !== null) {
-      setOnlineUsers([]);
-      setTypingUsers([]);
-      // Clear any in-flight typing timer so it cannot fire against the stale room
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      isTypingRef.current = false;
-      fetchMessageHistory(activeRoomId);
-      // Nếu SignalR đang kết nối, gửi yêu cầu tham gia phòng mới
-      if (connection && connection.state === 'Connected') {
+    if (activeRoomId === null) return;
+
+    setOnlineUsers([]);
+    setTypingUsers([]);
+    // Clear any in-flight typing timer so it cannot fire against the stale room
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    isTypingRef.current = false;
+    fetchMessageHistory(activeRoomId);
+
+    if (connection && connection.state === 'Connected') {
+      const prev = prevRoomRef.current;
+      if (prev !== activeRoomId) {
+        if (prev !== null) {
+          connection.invoke('LeaveRoom', prev)
+            .catch((err) => console.error('LeaveRoom error:', err));
+        }
         connection.invoke('JoinRoom', activeRoomId)
           .catch((err) => console.error('JoinRoom error:', err));
+        prevRoomRef.current = activeRoomId;
       }
     }
-  }, [activeRoomId]);
+  }, [activeRoomId, connection]);
 
-  // 3. Khởi tạo kết nối SignalR
+  // Effect A+B: Vòng đời kết nối SignalR (build + start + listeners + stop)
+  // gói trong MỘT effect theo [token]. Mỗi lần effect chạy tạo một connection
+  // riêng; cleanup dừng đúng connection đó. Nhờ vậy StrictMode (mount đôi ở dev)
+  // không gây race "start before stop"/"not in Disconnected state" — vì hai lần
+  // chạy thao tác trên hai object khác nhau. Listeners đăng ký MỘT lần và đọc
+  // activeRoomIdRef để không bị stale khi đổi phòng.
   useEffect(() => {
     const hubUrl = `${API_BASE_URL.replace('/api', '')}/chatHub?access_token=${token}`;
-    const newConnection = new HubConnectionBuilder()
+    const conn = new HubConnectionBuilder()
       .withUrl(hubUrl)
       .configureLogging(LogLevel.Information)
       .withAutomaticReconnect()
       .build();
 
-    setConnection(newConnection);
+    setConnection(conn);
+    connectionRef.current = conn;
+    let cancelled = false;
+
+    // Lắng nghe tin nhắn mới (User hoặc AI placeholder)
+    conn.on('ReceiveMessage', (newMessage: Message) => {
+      // Tránh trùng lặp tin nhắn nếu tải lịch sử có độ trễ
+      setMessages((prev) => {
+        if (prev.some(m => m.id === newMessage.id)) return prev;
+        return [...prev, newMessage];
+      });
+    });
+
+    // Lắng nghe stream chữ từ AI Copilot
+    conn.on('ReceiveAiToken', (tempId: number, tokenStr: string) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempId
+            ? { ...msg, content: msg.content + tokenStr }
+            : msg
+        )
+      );
+    });
+
+    // Lắng nghe thông báo hoàn thành stream AI
+    conn.on('ReceiveAiComplete', (tempId: number, finalId: number, finalContent: string) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempId
+            ? { ...msg, id: finalId, content: finalContent }
+            : msg
+        )
+      );
+    });
+
+    // Lắng nghe thông báo hệ thống (Tham gia/rời phòng)
+    conn.on('ReceiveNotification', (notifyText: string) => {
+      setNotifications((prev) => [...prev, notifyText]);
+      // Tự động xóa thông báo sau 5 giây
+      setTimeout(() => {
+        setNotifications((prev) => prev.filter((n) => n !== notifyText));
+      }, 5000);
+    });
+
+    // Cập nhật danh sách user đang online trong phòng (đọc ref để không stale)
+    conn.on('PresenceUpdate', (roomId: number, usernames: string[]) => {
+      if (roomId === activeRoomIdRef.current) {
+        setOnlineUsers(usernames);
+      }
+    });
+
+    // Cập nhật danh sách user đang gõ (đọc ref để không stale)
+    conn.on('TypingUpdate', (roomId: number, user: string, isTyping: boolean) => {
+      if (roomId !== activeRoomIdRef.current || user === username) return;
+      setTypingUsers((prev) => {
+        if (isTyping) {
+          return prev.includes(user) ? prev : [...prev, user];
+        }
+        return prev.filter((u) => u !== user);
+      });
+    });
+
+    conn.start()
+      .then(() => {
+        if (cancelled) return;
+        console.log('SignalR connected.');
+        const roomId = activeRoomIdRef.current;
+        if (roomId !== null) {
+          conn.invoke('JoinRoom', roomId)
+            .catch((err) => console.error('JoinRoom error:', err));
+          prevRoomRef.current = roomId;
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('SignalR Connection Error: ', err);
+        message.error('Không thể kết nối đến máy chủ thời gian thực.');
+      });
+
+    return () => {
+      cancelled = true;
+      conn.off('ReceiveMessage');
+      conn.off('ReceiveAiToken');
+      conn.off('ReceiveAiComplete');
+      conn.off('ReceiveNotification');
+      conn.off('PresenceUpdate');
+      conn.off('TypingUpdate');
+      prevRoomRef.current = null;
+      // stop() sẽ hủy start() đang chờ (nếu có); lỗi abort được nuốt qua cờ cancelled
+      conn.stop().catch(() => {});
+    };
   }, [token]);
-
-  // 4. Lắng nghe các sự kiện từ SignalR Hub
-  useEffect(() => {
-    if (connection) {
-      connection.start()
-        .then(() => {
-          console.log('SignalR connected.');
-          if (activeRoomId !== null) {
-            connection.invoke('JoinRoom', activeRoomId)
-              .catch((err) => console.error('JoinRoom error:', err));
-          }
-        })
-        .catch((err) => {
-          console.error('SignalR Connection Error: ', err);
-          message.error('Không thể kết nối đến máy chủ thời gian thực.');
-        });
-
-      // Lắng nghe tin nhắn mới (User hoặc AI placeholder)
-      connection.on('ReceiveMessage', (newMessage: Message) => {
-        // Tránh trùng lặp tin nhắn nếu tải lịch sử có độ trễ
-        setMessages((prev) => {
-          if (prev.some(m => m.id === newMessage.id)) return prev;
-          return [...prev, newMessage];
-        });
-      });
-
-      // Lắng nghe stream chữ từ AI Copilot
-      connection.on('ReceiveAiToken', (tempId: number, tokenStr: string) => {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === tempId
-              ? { ...msg, content: msg.content + tokenStr }
-              : msg
-          )
-        );
-      });
-
-      // Lắng nghe thông báo hoàn thành stream AI
-      connection.on('ReceiveAiComplete', (tempId: number, finalId: number, finalContent: string) => {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === tempId
-              ? { ...msg, id: finalId, content: finalContent }
-              : msg
-          )
-        );
-      });
-
-      // Lắng nghe thông báo hệ thống (Tham gia/rời phòng)
-      connection.on('ReceiveNotification', (notifyText: string) => {
-        setNotifications((prev) => [...prev, notifyText]);
-        // Tự động xóa thông báo sau 5 giây
-        setTimeout(() => {
-          setNotifications((prev) => prev.filter((n) => n !== notifyText));
-        }, 5000);
-      });
-
-      // Cập nhật danh sách user đang online trong phòng
-      connection.on('PresenceUpdate', (roomId: number, usernames: string[]) => {
-        if (roomId === activeRoomId) {
-          setOnlineUsers(usernames);
-        }
-      });
-
-      // Cập nhật danh sách user đang gõ
-      connection.on('TypingUpdate', (roomId: number, user: string, isTyping: boolean) => {
-        if (roomId !== activeRoomId || user === username) return;
-        setTypingUsers((prev) => {
-          if (isTyping) {
-            return prev.includes(user) ? prev : [...prev, user];
-          }
-          return prev.filter((u) => u !== user);
-        });
-      });
-
-      return () => {
-        connection.off('ReceiveMessage');
-        connection.off('ReceiveAiToken');
-        connection.off('ReceiveAiComplete');
-        connection.off('ReceiveNotification');
-        connection.off('PresenceUpdate');
-        connection.off('TypingUpdate');
-        if (connection.state === 'Connected' && activeRoomId !== null) {
-          connection.invoke('LeaveRoom', activeRoomId)
-            .catch((err) => console.error('LeaveRoom error:', err));
-        }
-        connection.stop();
-      };
-    }
-  }, [connection, activeRoomId]);
 
   // Tự động cuộn xuống dưới khi có tin nhắn mới
   useEffect(() => {
