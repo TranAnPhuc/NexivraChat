@@ -31,6 +31,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [inputText, setInputText] = useState('');
   const [connection, setConnection] = useState<HubConnection | null>(null);
   const [notifications, setNotifications] = useState<string[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
+  const connectionRef = useRef<HubConnection | null>(null);
+  const activeRoomIdRef = useRef<number | null>(null);
 
   const messageEndRef = useRef<HTMLDivElement>(null);
 
@@ -62,8 +68,16 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     }
   };
 
+  useEffect(() => { connectionRef.current = connection; }, [connection]);
+  useEffect(() => { activeRoomIdRef.current = activeRoomId; }, [activeRoomId]);
+
   useEffect(() => {
     if (activeRoomId !== null) {
+      setOnlineUsers([]);
+      setTypingUsers([]);
+      // Clear any in-flight typing timer so it cannot fire against the stale room
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      isTypingRef.current = false;
       fetchMessageHistory(activeRoomId);
       // Nếu SignalR đang kết nối, gửi yêu cầu tham gia phòng mới
       if (connection && connection.state === 'Connected') {
@@ -141,11 +155,31 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         }, 5000);
       });
 
+      // Cập nhật danh sách user đang online trong phòng
+      connection.on('PresenceUpdate', (roomId: number, usernames: string[]) => {
+        if (roomId === activeRoomId) {
+          setOnlineUsers(usernames);
+        }
+      });
+
+      // Cập nhật danh sách user đang gõ
+      connection.on('TypingUpdate', (roomId: number, user: string, isTyping: boolean) => {
+        if (roomId !== activeRoomId || user === username) return;
+        setTypingUsers((prev) => {
+          if (isTyping) {
+            return prev.includes(user) ? prev : [...prev, user];
+          }
+          return prev.filter((u) => u !== user);
+        });
+      });
+
       return () => {
         connection.off('ReceiveMessage');
         connection.off('ReceiveAiToken');
         connection.off('ReceiveAiComplete');
         connection.off('ReceiveNotification');
+        connection.off('PresenceUpdate');
+        connection.off('TypingUpdate');
         if (connection.state === 'Connected' && activeRoomId !== null) {
           connection.invoke('LeaveRoom', activeRoomId)
             .catch((err) => console.error('LeaveRoom error:', err));
@@ -160,6 +194,26 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const sendTyping = (isTyping: boolean) => {
+    const conn = connectionRef.current;
+    const roomId = activeRoomIdRef.current;
+    if (!conn || conn.state !== 'Connected' || roomId === null) return;
+    conn.invoke('Typing', roomId, isTyping).catch(() => {});
+  };
+
+  const handleInputChange = (value: string) => {
+    setInputText(value);
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      sendTyping(true);
+    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      sendTyping(false);
+    }, 2000);
+  };
+
   // 5. Gửi tin nhắn qua SignalR Hub
   const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend !== undefined ? textToSend : inputText;
@@ -167,6 +221,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
 
     try {
       await connection.invoke('SendMessage', activeRoomId, text.trim());
+      if (isTypingRef.current) {
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        isTypingRef.current = false;
+        sendTyping(false);
+      }
       if (textToSend === undefined) {
         setInputText('');
       }
@@ -225,6 +284,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
             <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', marginTop: '2px' }}>
               {activeRoom ? activeRoom.description : 'Please select a room to start discussions.'}
             </div>
+            {activeRoom && (
+              <div
+                style={{ fontSize: '11px', color: '#a3e635', fontFamily: 'monospace', marginTop: '2px' }}
+                title={onlineUsers.join(', ')}
+              >
+                ● {onlineUsers.length} online{onlineUsers.length > 0 ? `: ${onlineUsers.join(', ')}` : ''}
+              </div>
+            )}
           </div>
         </div>
 
@@ -333,6 +400,19 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
           <div ref={messageEndRef} />
         </div>
 
+        {/* Typing Indicator */}
+        {typingUsers.length > 0 && (
+          <div style={{
+            padding: '4px 20px',
+            fontSize: '11px',
+            color: '#a3e635',
+            fontFamily: 'monospace',
+            fontStyle: 'italic'
+          }}>
+            {typingUsers.join(', ')} đang gõ...
+          </div>
+        )}
+
         {/* Input Message Area */}
         <div style={{
           padding: '16px 20px',
@@ -343,7 +423,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         }}>
           <Input
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={(e) => handleInputChange(e.target.value)}
             onPressEnter={() => handleSendMessage()}
             placeholder="Type a message... (Use @copilot to query AI Assistant)"
             style={{

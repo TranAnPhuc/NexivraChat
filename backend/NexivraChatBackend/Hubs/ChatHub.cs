@@ -15,29 +15,60 @@ namespace NexivraChatBackend.Hubs
     {
         private readonly MessageRepository _messageRepository;
         private readonly AiService _aiService;
+        private readonly PresenceTracker _presenceTracker;
 
-        public ChatHub(MessageRepository messageRepository, AiService aiService)
+        public ChatHub(MessageRepository messageRepository, AiService aiService, PresenceTracker presenceTracker)
         {
             _messageRepository = messageRepository;
             _aiService = aiService;
+            _presenceTracker = presenceTracker;
         }
 
         public async Task JoinRoom(int roomId)
         {
             var roomString = roomId.ToString();
             await Groups.AddToGroupAsync(Context.ConnectionId, roomString);
-            
+
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            _presenceTracker.UserJoined(roomId, Context.ConnectionId, username);
+
             await Clients.Group(roomString).SendAsync("ReceiveNotification", $"{username} đã tham gia phòng.");
+            await Clients.Group(roomString).SendAsync("PresenceUpdate", roomId, _presenceTracker.GetOnlineUsers(roomId));
         }
 
         public async Task LeaveRoom(int roomId)
         {
             var roomString = roomId.ToString();
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomString);
-            
+
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            _presenceTracker.UserLeft(roomId, Context.ConnectionId, username);
+
             await Clients.Group(roomString).SendAsync("ReceiveNotification", $"{username} đã rời phòng.");
+            await Clients.Group(roomString).SendAsync("PresenceUpdate", roomId, _presenceTracker.GetOnlineUsers(roomId));
+            // Đảm bảo người khác không thấy "đang gõ" treo lại sau khi rời phòng
+            await Clients.OthersInGroup(roomString).SendAsync("TypingUpdate", roomId, username, false);
+        }
+
+        public async Task Typing(int roomId, bool isTyping)
+        {
+            var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            var roomString = roomId.ToString();
+            // Chỉ gửi cho người khác trong phòng, không gửi lại cho chính người gõ
+            await Clients.OthersInGroup(roomString).SendAsync("TypingUpdate", roomId, username, isTyping);
+        }
+
+        public override async Task OnDisconnectedAsync(Exception? exception)
+        {
+            var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            var affectedRooms = _presenceTracker.RemoveConnection(Context.ConnectionId);
+            foreach (var roomId in affectedRooms)
+            {
+                var roomString = roomId.ToString();
+                await Clients.Group(roomString).SendAsync("PresenceUpdate", roomId, _presenceTracker.GetOnlineUsers(roomId));
+                await Clients.OthersInGroup(roomString).SendAsync("TypingUpdate", roomId, username, false);
+            }
+            await base.OnDisconnectedAsync(exception);
         }
 
         public async Task SendMessage(int roomId, string content)
