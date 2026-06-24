@@ -1,14 +1,15 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Input, Button, message } from 'antd';
-import { SendOutlined, RobotOutlined, TranslationOutlined } from '@ant-design/icons';
+import { SendOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { API_BASE_URL } from '../services/api';
 import { RoomSidebar, type Room, type SidebarUser } from '../components/RoomSidebar';
 import { CopilotPanel } from '../components/CopilotPanel';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { MessageBubble } from '../components/MessageBubble';
 import { ProfileView } from './ProfileView';
 
 export interface Message {
@@ -46,10 +47,21 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  const handleOpenProfile = (userId: number) => {
+  const handleOpenProfile = useCallback((userId: number) => {
     setProfileUserId(userId);
     setIsProfileOpen(true);
-  };
+  }, []);
+
+  // Mở hồ sơ theo tên người gửi (dùng cho click vào tên trong bong bóng).
+  // Đọc usersRef.current để callback ổn định, không phụ thuộc state users.
+  const handleOpenSenderProfile = useCallback((senderName: string) => {
+    const targetUser = usersRef.current.find((u) => u.username === senderName);
+    if (targetUser) {
+      handleOpenProfile(targetUser.id);
+    } else if (senderName === username) {
+      handleOpenProfile(0);
+    }
+  }, [handleOpenProfile, username]);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
@@ -63,6 +75,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
 
   const messageEndRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
+
+  // Giữ bản tham chiếu users mới nhất để callback mở-profile-theo-tên ổn định
+  // (không tạo lại khi presence cập nhật), nhờ đó React.memo của MessageBubble giữ hiệu lực.
+  const usersRef = useRef(users);
+  useEffect(() => { usersRef.current = users; }, [users]);
 
   // 1. Tải danh sách phòng từ API
   const fetchRooms = async () => {
@@ -341,10 +358,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     }
   };
 
-  const handleTranslateMessage = async (msgId: number, text: string) => {
+  const handleTranslateMessage = useCallback(async (msgId: number, text: string) => {
     const isVietnamese = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệđìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ]/i.test(text);
     const targetLanguage = isVietnamese ? 'English' : 'Vietnamese';
-    
+
     setTranslatingIds(prev => ({ ...prev, [msgId]: true }));
     try {
       const response = await api.post('/translation', { text, targetLanguage });
@@ -354,7 +371,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     } finally {
       setTranslatingIds(prev => ({ ...prev, [msgId]: false }));
     }
-  };
+  }, []);
+
+  const handleHideTranslation = useCallback((msgId: number) => {
+    setTranslations((prev) => {
+      const copy = { ...prev };
+      delete copy[msgId];
+      return copy;
+    });
+  }, []);
 
   const handleSelectRoom = (roomId: number) => {
     setActiveRoomId(roomId);
@@ -463,112 +488,18 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               Chưa có tin nhắn — hãy bắt đầu trò chuyện 👋
             </div>
           ) : (
-            messages.map((msg) => {
-              const isMe = msg.senderName === username;
-              const isAi = msg.isAi;
-              return (
-                <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '74%', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ fontSize: '11px', color: isAi ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    {isAi && <RobotOutlined />}
-                    <span
-                      style={{ cursor: isAi ? 'default' : 'pointer', textDecoration: isAi ? 'none' : 'underline' }}
-                      onClick={() => {
-                        if (!isAi) {
-                          const targetUser = users.find(u => u.username === msg.senderName);
-                          if (targetUser) {
-                            handleOpenProfile(targetUser.id);
-                          } else if (msg.senderName === username) {
-                            handleOpenProfile(0);
-                          }
-                        }
-                      }}
-                      title={isAi ? "Trợ lý AI" : `Xem hồ sơ của @${msg.senderName}`}
-                    >
-                      {isAi ? 'Trợ lý AI' : msg.senderName}
-                    </span>
-                    <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
-                  </div>
-                  <div style={{
-                    padding: '9px 13px',
-                    backgroundColor: isMe ? 'var(--bubble-me)' : isAi ? 'var(--bubble-ai-bg)' : 'var(--bubble-other)',
-                    color: isMe ? 'var(--bubble-me-text)' : isAi ? 'var(--bubble-ai-text)' : 'var(--bubble-other-text)',
-                    border: isAi ? '1px solid var(--bubble-ai-border)' : isMe ? 'none' : '1px solid var(--border)',
-                    borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                    fontSize: '14px',
-                    lineHeight: '1.5',
-                    whiteSpace: 'pre-wrap',
-                  }}>
-                    {msg.content === '' && isAi ? (
-                      <span className="copilot-loading">Trợ lý AI đang phản hồi…</span>
-                    ) : (
-                      msg.content
-                    )}
-                  </div>
-                  {!isMe && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '11px' }}>
-                      {translatingIds[msg.id] ? (
-                        <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>Đang dịch...</span>
-                      ) : translations[msg.id] ? (
-                        <button
-                          onClick={() => {
-                            setTranslations(prev => {
-                              const copy = { ...prev };
-                              delete copy[msg.id];
-                              return copy;
-                            });
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            color: 'var(--text-muted)',
-                            cursor: 'pointer',
-                            textDecoration: 'underline',
-                          }}
-                        >
-                          Ẩn bản dịch
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleTranslateMessage(msg.id, msg.content)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            color: 'var(--primary)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '3px'
-                          }}
-                        >
-                          <TranslationOutlined /> Dịch
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {translations[msg.id] && (
-                    <div style={{
-                      marginTop: '6px',
-                      padding: '8px 12px',
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderLeft: '3px solid var(--primary)',
-                      borderRadius: '4px 12px 12px 12px',
-                      fontSize: '13px',
-                      color: 'var(--text-secondary)',
-                      lineHeight: '1.4',
-                      maxWidth: '100%',
-                      animation: 'fadeIn 0.2s ease-out'
-                    }}>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', fontWeight: 600 }}>
-                        BẢN DỊCH
-                      </div>
-                      {translations[msg.id]}
-                    </div>
-                  )}
-                </div>
-              );
-            })
+            messages.map((msg) => (
+              <MessageBubble
+                key={msg.id}
+                msg={msg}
+                currentUsername={username}
+                translation={translations[msg.id]}
+                isTranslating={!!translatingIds[msg.id]}
+                onTranslate={handleTranslateMessage}
+                onHideTranslation={handleHideTranslation}
+                onOpenSenderProfile={handleOpenSenderProfile}
+              />
+            ))
           )}
           {activeChatType === 'room' && typingUsers.length > 0 && (
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
