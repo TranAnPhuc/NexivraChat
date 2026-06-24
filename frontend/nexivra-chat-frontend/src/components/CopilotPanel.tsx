@@ -17,156 +17,62 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ onTriggerCommand }) 
   };
 
   return (
-    <div style={{
-      width: '280px',
-      backgroundColor: '#0f172a',
-      borderLeft: '1px solid #1e293b',
-      padding: '16px',
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      fontFamily: 'monospace',
-      color: '#fff'
-    }}>
+    <div style={{ width: '280px', backgroundColor: 'var(--bg-surface)', borderLeft: '1px solid var(--border)', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--text-primary)' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <RobotOutlined style={{ color: '#a3e635', fontSize: '20px' }} />
-        <span style={{ color: '#a3e635', fontWeight: 'bold', fontSize: '15px' }}>
-          // AI_COPILOT_HUD
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+        <RobotOutlined style={{ color: 'var(--primary)', fontSize: '20px' }} />
+        <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '16px', fontFamily: "'Outfit', sans-serif" }}>
+          Trợ lý AI
         </span>
       </div>
 
-      <p style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.5' }}>
-        Trợ lý AI Co-pilot hoạt động song song trong phòng chat. Bạn có thể tag @copilot trực tiếp hoặc sử dụng các lệnh phím tắt nhanh dưới đây:
+      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: 0 }}>
+        Trợ lý AI đồng hành trong phòng chat. Bạn có thể tag @copilot trực tiếp hoặc dùng các nút nhanh dưới đây:
       </p>
 
-      <Divider style={{ borderColor: '#1e293b', margin: '12px 0' }} />
+      <Divider style={{ borderColor: 'var(--border)', margin: '12px 0' }} />
 
-      {/* Quick Actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-        <Card
-          size="small"
-          style={{
-            backgroundColor: '#0b0f19',
-            borderColor: '#1e293b',
-            borderRadius: 0,
-          }}
-          styles={{
-            body: { padding: '12px' }
-          }}
-        >
-          <div style={{ color: '#a3e635', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <AlignLeftOutlined /> TÓM TẮT PHÒNG CHAT
+        <Card size="small" style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border)', borderRadius: 8 }} styles={{ body: { padding: '12px' } }}>
+          <div style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AlignLeftOutlined /> Tóm tắt phòng
           </div>
-          <p style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>
-            Tóm tắt 10 tin nhắn thảo luận gần nhất trong phòng chat.
+          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+            Tóm tắt nhanh các tin nhắn gần đây trong phòng.
           </p>
-          <Button
-            type="dashed"
-            size="small"
-            onClick={() => onTriggerCommand('@copilot Tóm tắt ngắn gọn các cuộc trò chuyện gần đây trong phòng này.')}
-            style={{
-              width: '100%',
-              borderRadius: 0,
-              borderColor: '#a3e635',
-              color: '#a3e635',
-              backgroundColor: 'transparent',
-              fontFamily: 'monospace',
-              fontSize: '11px'
-            }}
-          >
-            RUN_SUMMARIZE
+          <Button block size="small" onClick={() => onTriggerCommand('@copilot Tóm tắt ngắn gọn các cuộc trò chuyện gần đây trong phòng này.')}>
+            Tóm tắt
           </Button>
         </Card>
 
-        <Card
-          size="small"
-          style={{
-            backgroundColor: '#0b0f19',
-            borderColor: '#1e293b',
-            borderRadius: 0,
-          }}
-          styles={{
-            body: { padding: '12px' }
-          }}
-        >
-          <div style={{ color: '#a3e635', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <BulbOutlined /> GỢI Ý CHỦ ĐỀ CHAT
+        <Card size="small" style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border)', borderRadius: 8 }} styles={{ body: { padding: '12px' } }}>
+          <div style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <BulbOutlined /> Gợi ý chủ đề
           </div>
-          <p style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>
-            AI gợi ý các chủ đề thảo luận tiếp theo cho phòng chat.
+          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+            AI gợi ý các chủ đề thảo luận tiếp theo cho phòng.
           </p>
-          <Button
-            type="dashed"
-            size="small"
-            onClick={() => onTriggerCommand('@copilot Hãy gợi ý 3 ý tưởng/chủ đề thảo luận tiếp theo cho phòng chat này.')}
-            style={{
-              width: '100%',
-              borderRadius: 0,
-              borderColor: '#a3e635',
-              color: '#a3e635',
-              backgroundColor: 'transparent',
-              fontFamily: 'monospace',
-              fontSize: '11px'
-            }}
-          >
-            BRAINSTORM_TOPICS
+          <Button block size="small" onClick={() => onTriggerCommand('@copilot Hãy gợi ý 3 ý tưởng/chủ đề thảo luận tiếp theo cho phòng chat này.')}>
+            Gợi ý
           </Button>
         </Card>
 
-        <Card
-          size="small"
-          style={{
-            backgroundColor: '#0b0f19',
-            borderColor: '#1e293b',
-            borderRadius: 0,
-          }}
-          styles={{
-            body: { padding: '12px' }
-          }}
-        >
-          <div style={{ color: '#a3e635', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <BookOutlined /> GIẢI THÍCH THUẬT NGỮ
+        <Card size="small" style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border)', borderRadius: 8 }} styles={{ body: { padding: '12px' } }}>
+          <div style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <BookOutlined /> Giải thích thuật ngữ
           </div>
-          <p style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
             Nhập thuật ngữ cần AI giải nghĩa.
           </p>
           <div style={{ display: 'flex', gap: '4px' }}>
-            <Input
-              size="small"
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              placeholder="e.g. SignalR"
-              onPressEnter={handleExplainTerm}
-              style={{
-                backgroundColor: '#1e293b',
-                borderColor: '#475569',
-                color: '#fff',
-                borderRadius: 0,
-                fontFamily: 'monospace'
-              }}
-            />
-            <Button
-              type="primary"
-              size="small"
-              onClick={handleExplainTerm}
-              style={{
-                backgroundColor: '#a3e635',
-                borderColor: '#a3e635',
-                color: '#000',
-                borderRadius: 0,
-                fontWeight: 'bold',
-                fontFamily: 'monospace'
-              }}
-            >
-              RUN
-            </Button>
+            <Input size="small" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="VD: SignalR" onPressEnter={handleExplainTerm} />
+            <Button type="primary" size="small" onClick={handleExplainTerm}>Hỏi</Button>
           </div>
         </Card>
       </div>
 
-      <div style={{ fontSize: '9px', color: '#475569', textAlign: 'center', marginTop: 'auto' }}>
-        SYSTEM_ACTIVE v1.0.0
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', marginTop: 'auto' }}>
+        NexivraChat
       </div>
     </div>
   );
