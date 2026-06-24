@@ -27,7 +27,7 @@ NexivraChat/
 │       │   ├── DapperContext.cs           # Khởi tạo kết nối NpgsqlConnection, cấu hình Map tên thuộc tính dạng snake_case.
 │       │   └── DbInitializer.cs           # Tự động tạo bảng (users, chat_rooms, messages) và seed dữ liệu phòng mặc định.
 │       ├── Hubs/
-│       │   └── ChatHub.cs                 # Trọng tâm điều phối SignalR: gửi tin nhắn, tham gia phòng, điều phối stream AI.
+│       │   └── ChatHub.cs                 # Trọng tâm điều phối SignalR: gửi tin nhắn, tham gia phòng, điều phối stream AI, quản lý presence & typing.
 │       ├── Models/
 │       │   ├── User.cs                    # Bản ghi User (id, username, password_hash, created_at).
 │       │   ├── ChatRoom.cs                # Bản ghi ChatRoom (id, name, description).
@@ -38,11 +38,14 @@ NexivraChat/
 │       │   └── MessageRepository.cs       # Lưu tin nhắn mới và lấy lịch sử tin nhắn cũ.
 │       ├── Services/
 │       │   ├── TokenService.cs            # Tạo mã JWT Token thời hạn 7 ngày.
-│       │   └── AiService.cs               # Gọi trực tiếp REST API của Gemini với luồng stream IAsyncEnumerable<string>.
+│       │   ├── AiService.cs               # Gọi trực tiếp REST API của Gemini với luồng stream IAsyncEnumerable<string>.
+│       │   └── PresenceTracker.cs         # Theo dõi presence in-memory (ai online ở phòng nào), đếm theo connectionId để xử lý nhiều tab.
 │       ├── Properties/
 │       │   └── launchSettings.json        # Cấu hình cổng chạy backend (HTTP: 5182, HTTPS: 7103).
 │       ├── Program.cs                     # Cấu hình ứng dụng: CORS, JWT Auth, SignalR mapping, DI Container.
 │       └── appsettings.json               # Chuỗi kết nối DB PostgreSQL và khóa bí mật JWT.
+│   └── NexivraChatBackend.Tests/
+│       └── PresenceTrackerTests.cs        # Unit test xUnit cho PresenceTracker (6 test cases).
 │
 ├── frontend/
 │   └── nexivra-chat-frontend/
@@ -52,7 +55,7 @@ NexivraChat/
 │       │   │   └── RoomSidebar.tsx        # Danh sách phòng chat, tạo phòng mới, thông tin user và nút đăng xuất.
 │       │   ├── views/
 │       │   │   ├── LoginView.tsx          # Màn hình đăng nhập/đăng ký giao diện tối phong cách Terminal.
-│       │   │   └── ChatView.tsx           # Giao diện chính kết nối SignalR Client, hiển thị tin nhắn, stream AI và gửi chat.
+│       │   │   └── ChatView.tsx           # Giao diện chính kết nối SignalR Client, hiển thị tin nhắn, stream AI, online count, typing indicator và gửi chat.
 │       │   ├── services/
 │       │   │   └── api.ts                 # Cấu hình Axios, tự động đính kèm JWT Token vào Header của các yêu cầu API.
 │       │   ├── App.tsx                    # Quản lý trạng thái đăng nhập toàn cục và điều phối hiển thị LoginView / ChatView.
@@ -128,13 +131,27 @@ sequenceDiagram
     deactivate Hub
 ```
 
+### Sự Kiện SignalR Mới: Presence & Typing (từ phòng ban)
+
+**Hub Methods** (gọi từ Client):
+- `JoinRoom(roomId)` — Cập nhật: người dùng tham gia phòng, phát `PresenceUpdate` cho toàn phòng với danh sách online hiện tại.
+- `LeaveRoom(roomId)` — Cập nhật: người dùng rời phòng, phát `PresenceUpdate` và reset `TypingUpdate` cho người khác.
+- `Typing(roomId, isTyping)` — Client phát: khi bắt đầu hoặc dừng gõ (debounced 2s), phát `TypingUpdate` cho người khác.
+- `OnDisconnectedAsync()` — Tự động: khi ngắt kết nối, dọn sạch presence khỏi tất cả phòng và phát lại `PresenceUpdate`.
+
+**Client Events** (nhận từ Hub):
+- `PresenceUpdate(roomId, usernames[])` — Danh sách tên người dùng online hiện tại, hiển thị online count ở phòng header.
+- `TypingUpdate(roomId, username, isTyping)` — Ai đang gõ, hiển thị thông báo "username đang gõ..." trên giao diện.
+
+**Tracking**: `PresenceTracker` singleton lưu `(roomId -> (connectionId -> username))`, hỗ trợ một user mở nhiều tab (chỉ offline khi tất cả connection rời).
+
 ---
 
 ## ⚠️ Điểm Cần Khắc Phục Hiện Tại (Critical Bugs)
 
-1. **Lỗi import ở `CopilotPanel.tsx`**:
-   - Dòng 94 sử dụng `<LightBulbOutlined />` trong khi danh sách import chỉ có `BulbOutlined`. Điều này sẽ gây lỗi compile / crash giao diện React khi hiển thị panel AI. Cần sửa đổi sang `<BulbOutlined />`.
+1. **Lỗi import ở `CopilotPanel.tsx`** ✅ ĐÃ SỬA:
+   - Dòng 94 đã sử dụng `<BulbOutlined />` (không phải `<LightBulbOutlined />`). Sửa xong, không gây lỗi.
 2. **Cài đặt thư viện Frontend**:
    - Dự án Frontend chưa được cài đặt thư viện (`node_modules`). Cần chạy `npm install` trước khi build hoặc start dev server.
-3. **Cấu hình Gemini API Key**:
-   - Cần bổ sung cấu hình `"Gemini:ApiKey"` vào file `appsettings.json` (hoặc nạp thông qua Environment Variable `GEMINI_API_KEY`) để kích hoạt trí tuệ nhân tạo thực thay vì chạy chế độ Mock dữ liệu.
+3. **Cấu hình Gemini API Key** ✅ ĐÃ SỬA:
+   - API key đặt trong `appsettings.Development.json` (gitignored, không commit). `appsettings.json` giữ placeholder trống. `AiService` đã hỗ trợ fallback mock mode khi không có key.
