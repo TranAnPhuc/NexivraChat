@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { Input, Button, message } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
@@ -10,7 +10,10 @@ import { RoomSidebar, type Room, type SidebarUser } from '../components/RoomSide
 import { CopilotPanel } from '../components/CopilotPanel';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { MessageBubble } from '../components/MessageBubble';
-import { ProfileView } from './ProfileView';
+
+const ProfileView = lazy(() =>
+  import('./ProfileView').then((m) => ({ default: m.ProfileView }))
+);
 
 export interface Message {
   id: number;
@@ -46,6 +49,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [translatingIds, setTranslatingIds] = useState<Record<number, boolean>>({});
   const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  // Chỉ mount ProfileView (lazy chunk) sau lần đầu mở hồ sơ; giữ mount để Modal có animation đóng/mở.
+  const [profileEverOpened, setProfileEverOpened] = useState(false);
 
   // Giữ bản tham chiếu users mới nhất để callback mở-profile-theo-tên ổn định
   // (không tạo lại khi presence cập nhật), nhờ đó React.memo của MessageBubble giữ hiệu lực.
@@ -55,6 +60,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const handleOpenProfile = useCallback((userId: number) => {
     setProfileUserId(userId);
     setIsProfileOpen(true);
+    setProfileEverOpened(true);
   }, []);
 
   // Mở hồ sơ theo tên người gửi (dùng cho click vào tên trong bong bóng).
@@ -524,12 +530,16 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       </div>
 
       {activeChatType === 'room' && <CopilotPanel onTriggerCommand={handleSendMessage} />}
-      <ProfileView
-        userId={profileUserId || 0}
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-        currentUsername={username}
-      />
+      {profileEverOpened && (
+        <Suspense fallback={null}>
+          <ProfileView
+            userId={profileUserId || 0}
+            isOpen={isProfileOpen}
+            onClose={() => setIsProfileOpen(false)}
+            currentUsername={username}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
