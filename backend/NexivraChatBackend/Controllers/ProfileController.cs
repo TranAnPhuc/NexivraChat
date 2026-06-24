@@ -34,7 +34,7 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetOwnProfile()
+        public async Task<IActionResult> GetOwnProfile()
         {
             var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
@@ -44,7 +44,7 @@ namespace NexivraChatBackend.Controllers
 
             var username = User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty;
 
-            var profile = _profileRepository.GetByUserId(userId);
+            var profile = await _profileRepository.GetByUserId(userId);
             if (profile == null)
             {
                 profile = new UserProfile
@@ -78,7 +78,7 @@ namespace NexivraChatBackend.Controllers
                 return NotFound("Người dùng không tồn tại.");
             }
 
-            var profile = _profileRepository.GetByUserId(userId);
+            var profile = await _profileRepository.GetByUserId(userId);
             if (profile == null)
             {
                 profile = new UserProfile
@@ -103,7 +103,7 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpPut]
-        public IActionResult UpdateProfile([FromBody] UpdateProfileDto dto)
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
         {
             var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
@@ -111,7 +111,7 @@ namespace NexivraChatBackend.Controllers
                 return Unauthorized();
             }
 
-            var profile = _profileRepository.GetByUserId(userId);
+            var profile = await _profileRepository.GetByUserId(userId);
             if (profile == null)
             {
                 profile = new UserProfile
@@ -132,8 +132,8 @@ namespace NexivraChatBackend.Controllers
                 }
             }
 
-            _profileRepository.Upsert(profile);
-            
+            await _profileRepository.Upsert(profile);
+
             var username = User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty;
             return Ok(new
             {
@@ -246,7 +246,7 @@ namespace NexivraChatBackend.Controllers
             }
 
             // Retrieve or create profile to save
-            var profile = _profileRepository.GetByUserId(userId);
+            var profile = await _profileRepository.GetByUserId(userId);
             if (profile == null)
             {
                 profile = new UserProfile
@@ -264,7 +264,7 @@ namespace NexivraChatBackend.Controllers
                 profile.LastAnalyzedAt = DateTime.Now;
             }
 
-            _profileRepository.Upsert(profile);
+            await _profileRepository.Upsert(profile);
 
             return Ok(new
             {
