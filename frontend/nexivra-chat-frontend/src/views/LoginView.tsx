@@ -50,6 +50,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         <ThemeToggle />
       </div>
 
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <img
+          src="/logo.svg"
+          alt="NexivraChat"
+          style={{ width: 300, borderRadius: 12 }}
+        />
+      </div>
+
       <Card
         title={
           <div style={{

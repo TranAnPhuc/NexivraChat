@@ -51,9 +51,14 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
 
   return (
     <div style={{ width: '260px', backgroundColor: 'var(--bg-elevated)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Brand Logo */}
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+        <img src="/logo.svg" alt="NexivraChat" style={{ width: '100%', borderRadius: 8 }} />
+      </div>
+
       {/* Header */}
-      <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '16px', fontFamily: "'Outfit', sans-serif" }}>
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '14px', fontFamily: "'Outfit', sans-serif" }}>
           Phòng chat
         </span>
         <Button type="text" icon={<PlusOutlined style={{ color: 'var(--primary)' }} />} onClick={() => setIsModalOpen(true)} />
