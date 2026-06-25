@@ -14,9 +14,9 @@ namespace NexivraChatBackend.Services
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
 
-        public AiService(IConfiguration config)
+        public AiService(HttpClient httpClient, IConfiguration config)
         {
-            _httpClient = new HttpClient();
+            _httpClient = httpClient;
             var configKey = config["Gemini:ApiKey"];
             var envKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
             _apiKey = !string.IsNullOrEmpty(configKey) ? configKey : (!string.IsNullOrEmpty(envKey) ? envKey : string.Empty);
@@ -120,6 +120,71 @@ namespace NexivraChatBackend.Services
                         }
                     }
                 }
+            }
+        }
+
+        public async Task<string> GenerateContentAsync(string prompt, string systemInstruction = "")
+        {
+            if (string.IsNullOrEmpty(_apiKey))
+            {
+                return string.Empty;
+            }
+
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={_apiKey}";
+
+            var requestBody = new
+            {
+                contents = new[]
+                {
+                    new
+                    {
+                        parts = new[]
+                        {
+                            new { text = prompt }
+                        }
+                    }
+                },
+                systemInstruction = !string.IsNullOrEmpty(systemInstruction) ? new
+                {
+                    parts = new[]
+                    {
+                        new { text = systemInstruction }
+                    }
+                } : null
+            };
+
+            var json = JsonSerializer.Serialize(requestBody);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            try
+            {
+                var response = await _httpClient.PostAsync(url, content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return string.Empty;
+                }
+
+                var responseString = await response.Content.ReadAsStringAsync();
+                using (var doc = JsonDocument.Parse(responseString))
+                {
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("candidates", out var candidates) &&
+                        candidates.ValueKind == JsonValueKind.Array &&
+                        candidates.GetArrayLength() > 0 &&
+                        candidates[0].TryGetProperty("content", out var contentElement) &&
+                        contentElement.TryGetProperty("parts", out var parts) &&
+                        parts.ValueKind == JsonValueKind.Array &&
+                        parts.GetArrayLength() > 0 &&
+                        parts[0].TryGetProperty("text", out var textProp))
+                    {
+                        return textProp.GetString()?.Trim() ?? string.Empty;
+                    }
+                }
+                return string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
             }
         }
     }

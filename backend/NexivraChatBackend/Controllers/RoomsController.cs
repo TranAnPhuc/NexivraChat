@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NexivraChatBackend.Models;
 using NexivraChatBackend.Repositories;
+using System.Threading.Tasks;
 
 namespace NexivraChatBackend.Controllers
 {
@@ -20,14 +21,14 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetRooms()
+        public async Task<IActionResult> GetRooms()
         {
-            var rooms = _roomRepository.GetAll();
+            var rooms = await _roomRepository.GetAll();
             return Ok(rooms);
         }
 
         [HttpPost]
-        public IActionResult CreateRoom([FromBody] CreateRoomDto dto)
+        public async Task<IActionResult> CreateRoom([FromBody] CreateRoomDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Name))
             {
@@ -40,20 +41,20 @@ namespace NexivraChatBackend.Controllers
                 Description = dto.Description
             };
 
-            _roomRepository.Create(room);
+            await _roomRepository.Create(room);
             return Ok(room);
         }
 
         [HttpGet("{id}/messages")]
-        public IActionResult GetRoomMessages(int id, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
+        public async Task<IActionResult> GetRoomMessages(int id, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
         {
-            var room = _roomRepository.GetById(id);
+            var room = await _roomRepository.GetById(id);
             if (room == null)
             {
                 return NotFound("Phòng chat không tồn tại.");
             }
 
-            var messages = _messageRepository.GetMessagesByRoom(id, limit, offset);
+            var messages = await _messageRepository.GetMessagesByRoom(id, limit, offset);
             return Ok(messages);
         }
     }

@@ -16,12 +16,18 @@ namespace NexivraChatBackend.Hubs
         private readonly MessageRepository _messageRepository;
         private readonly AiService _aiService;
         private readonly PresenceTracker _presenceTracker;
+        private readonly PrivateChatRepository _privateChatRepository;
 
-        public ChatHub(MessageRepository messageRepository, AiService aiService, PresenceTracker presenceTracker)
+        public ChatHub(
+            MessageRepository messageRepository, 
+            AiService aiService, 
+            PresenceTracker presenceTracker,
+            PrivateChatRepository privateChatRepository)
         {
             _messageRepository = messageRepository;
             _aiService = aiService;
             _presenceTracker = presenceTracker;
+            _privateChatRepository = privateChatRepository;
         }
 
         public async Task JoinRoom(int roomId)
@@ -58,9 +64,20 @@ namespace NexivraChatBackend.Hubs
             await Clients.OthersInGroup(roomString).SendAsync("TypingUpdate", roomId, username, isTyping);
         }
 
+        public override async Task OnConnectedAsync()
+        {
+            var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            _presenceTracker.AddGlobalConnection(Context.ConnectionId, username);
+            await Clients.All.SendAsync("GlobalPresenceUpdate", _presenceTracker.GetGlobalOnlineUsers());
+            await base.OnConnectedAsync();
+        }
+
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            _presenceTracker.RemoveGlobalConnection(Context.ConnectionId);
+            await Clients.All.SendAsync("GlobalPresenceUpdate", _presenceTracker.GetGlobalOnlineUsers());
+
             var affectedRooms = _presenceTracker.RemoveConnection(Context.ConnectionId);
             foreach (var roomId in affectedRooms)
             {
@@ -85,7 +102,7 @@ namespace NexivraChatBackend.Hubs
                 CreatedAt = DateTime.Now,
                 IsAi = false
             };
-            _messageRepository.SaveNewMessage(userMessage);
+            await _messageRepository.SaveNewMessage(userMessage);
 
             // 2. Phát tin nhắn người dùng tới toàn phòng chat
             await Clients.Group(roomString).SendAsync("ReceiveMessage", userMessage);
@@ -100,7 +117,7 @@ namespace NexivraChatBackend.Hubs
                 }
 
                 // Lấy 10 tin nhắn gần nhất làm ngữ cảnh hội thoại
-                var recentMessages = _messageRepository.GetMessagesByRoom(roomId, 10, 0);
+                var recentMessages = await _messageRepository.GetMessagesByRoom(roomId, 10, 0);
                 var conversationContext = new StringBuilder();
                 foreach (var msg in recentMessages)
                 {
@@ -112,7 +129,7 @@ namespace NexivraChatBackend.Hubs
                 }
 
                 // 4. Tạo tin nhắn AI tạm thời (giá trị ID âm để tránh trùng lặp)
-                var tempAiMessageId = -1 * new Random().Next(1, 1000000);
+                var tempAiMessageId = TempMessageId.Next();
                 var aiPlaceholder = new Message
                 {
                     Id = tempAiMessageId,
@@ -146,7 +163,7 @@ namespace NexivraChatBackend.Hubs
                         CreatedAt = DateTime.Now,
                         IsAi = true
                     };
-                    _messageRepository.SaveNewMessage(finalAiMessage);
+                    await _messageRepository.SaveNewMessage(finalAiMessage);
 
                     // 7. Thông báo hoàn thành và thay thế ID âm bằng ID chính thức từ DB
                     await Clients.Group(roomString).SendAsync("ReceiveAiComplete", tempAiMessageId, finalAiMessage.Id, finalAiMessage.Content);
@@ -157,6 +174,34 @@ namespace NexivraChatBackend.Hubs
                     await Clients.Group(roomString).SendAsync("ReceiveAiComplete", tempAiMessageId, 0, $"Lỗi: {ex.Message}");
                 }
             }
+        }
+
+        public async Task SendPrivateMessage(int receiverId, string content)
+        {
+            var senderIdStr = Context.UserIdentifier;
+            if (string.IsNullOrEmpty(senderIdStr) || !int.TryParse(senderIdStr, out var senderId))
+            {
+                throw new HubException("Không xác định được danh tính người gửi.");
+            }
+
+            var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+
+            // 1. Lấy hoặc tạo phòng chat 1-1
+            var privateChat = await _privateChatRepository.GetOrCreate(senderId, receiverId);
+
+            // 2. Lưu tin nhắn vào Database
+            var userMessage = new Message
+            {
+                PrivateChatId = privateChat.Id,
+                SenderName = username,
+                Content = content,
+                CreatedAt = DateTime.Now,
+                IsAi = false
+            };
+            await _messageRepository.SaveNewMessage(userMessage);
+
+            // 3. Phát tin nhắn riêng tư tới cả người gửi và người nhận
+            await Clients.Users(senderId.ToString(), receiverId.ToString()).SendAsync("ReceivePrivateMessage", userMessage);
         }
     }
 }

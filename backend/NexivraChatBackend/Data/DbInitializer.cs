@@ -28,21 +28,54 @@ namespace NexivraChatBackend.Data
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                     );";
 
-                // 3. Tạo bảng messages
+                // 3. Tạo bảng private_chats
+                var createPrivateChatsTable = @"
+                    CREATE TABLE IF NOT EXISTS private_chats (
+                        id SERIAL PRIMARY KEY,
+                        user1_id INT REFERENCES users(id) ON DELETE CASCADE,
+                        user2_id INT REFERENCES users(id) ON DELETE CASCADE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                        CONSTRAINT unique_users UNIQUE (user1_id, user2_id)
+                    );";
+
+                // 4. Tạo bảng messages
                 var createMessagesTable = @"
                     CREATE TABLE IF NOT EXISTS messages (
                         id SERIAL PRIMARY KEY,
                         room_id INT REFERENCES chat_rooms(id) ON DELETE CASCADE,
+                        private_chat_id INT REFERENCES private_chats(id) ON DELETE CASCADE,
                         sender_name VARCHAR(50) NOT NULL,
                         content TEXT NOT NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
                         is_ai BOOLEAN DEFAULT FALSE NOT NULL
                     );";
 
+                // 5. Tạo bảng user_profiles
+                var createUserProfilesTable = @"
+                    CREATE TABLE IF NOT EXISTS user_profiles (
+                        user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                        bio VARCHAR(255),
+                        native_language VARCHAR(50) DEFAULT 'Vietnamese' NOT NULL,
+                        ai_analysis_json JSONB,
+                        last_analyzed_at TIMESTAMP
+                    );";
+
                 connection.Execute(createUsersTable);
                 connection.Execute(createRoomsTable);
+                connection.Execute(createPrivateChatsTable);
                 connection.Execute(createMessagesTable);
-                
+                connection.Execute(createUserProfilesTable);
+
+                // 6. Tạo index tối ưu truy vấn lịch sử tin nhắn (idempotent)
+                var createMessageIndexes = @"
+                    CREATE INDEX IF NOT EXISTS idx_messages_room_created
+                        ON messages (room_id, created_at);
+                    CREATE INDEX IF NOT EXISTS idx_messages_private_created
+                        ON messages (private_chat_id, created_at);
+                    CREATE INDEX IF NOT EXISTS idx_messages_sender
+                        ON messages (sender_name);";
+                connection.Execute(createMessageIndexes);
+
                 // 4. Seed phòng mặc định nếu rỗng
                 var checkRooms = "SELECT COUNT(*) FROM chat_rooms";
                 var roomCount = connection.ExecuteScalar<int>(checkRooms);
