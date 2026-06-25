@@ -5,7 +5,7 @@
   --border: #E2E8F0;
   --text-primary: #0F172A;
   --text-secondary: #475569;
-  --text-muted: #94A3B8;
+  --text-muted: #64748B; /* WCAG AA: ~4.8:1 trên nền trắng cho body/label phụ */
   --primary: #0D9488;
   --primary-hover: #0F766E;
   --primary-soft: #F0FDFA;
@@ -28,7 +28,7 @@
   --border: #1E293B;
   --text-primary: #F1F5F9;
   --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  --text-muted: #818EA3; /* WCAG AA: ~5:1 trên nền tối, vẫn tách khỏi --text-secondary */
   --primary: #14B8A6;
   --primary-hover: #0D9488;
   --primary-soft: #134E4A;
