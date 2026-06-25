@@ -92,10 +92,17 @@ catch (Exception ex)
     Console.WriteLine($"Error initializing database: {ex.Message}");
 }
 
+// 6b. Đảm bảo thư mục lưu avatar tồn tại để UseStaticFiles phục vụ được.
+var avatarsPath = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"), "avatars");
+Directory.CreateDirectory(avatarsPath);
+
 // 7. Cấu hình HTTP Request Pipeline
 app.UseCors("CorsPolicy");
 
 app.UseHttpsRedirection();
+
+// Phục vụ file tĩnh (avatar) từ wwwroot.
+app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();

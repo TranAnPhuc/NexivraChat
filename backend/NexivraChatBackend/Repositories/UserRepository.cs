@@ -26,6 +26,15 @@ namespace NexivraChatBackend.Repositories
             }
         }
 
+        public async Task<User?> GetById(int id)
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                var query = "SELECT id, username, created_at AS CreatedAt FROM users WHERE id = @id LIMIT 1";
+                return await connection.QueryFirstOrDefaultAsync<User>(query, new { id });
+            }
+        }
+
         public async Task<List<User>> GetAll()
         {
             using (var connection = _context.CreateConnection())

@@ -66,6 +66,15 @@ namespace NexivraChatBackend.Data
                 connection.Execute(createMessagesTable);
                 connection.Execute(createUserProfilesTable);
 
+                // 5b. Mở rộng user_profiles cho avatar / social links / interests (idempotent).
+                // CREATE TABLE IF NOT EXISTS ở trên không thêm cột vào bảng đã tồn tại,
+                // nên dùng ALTER ... ADD COLUMN IF NOT EXISTS để chạy an toàn mỗi lần khởi động.
+                var alterUserProfiles = @"
+                    ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS avatar_url   TEXT;
+                    ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS social_links JSONB;
+                    ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS interests    JSONB;";
+                connection.Execute(alterUserProfiles);
+
                 // 6. Tạo index tối ưu truy vấn lịch sử tin nhắn (idempotent)
                 var createMessageIndexes = @"
                     CREATE INDEX IF NOT EXISTS idx_messages_room_created
