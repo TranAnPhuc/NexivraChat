@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NexivraChat — Hướng dẫn hiểu source code từ A → Z</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  /* ===== Design tokens — đồng bộ với chính dự án NexivraChat ===== */
+  :root[data-theme="light"]{
+    --bg-canvas:#F8FAFC; --bg-surface:#FFFFFF; --bg-elevated:#F1F5F9;
+    --border:#E2E8F0; --text-primary:#0F172A; --text-secondary:#475569;
+    --text-muted:#94A3B8; --primary:#0D9488; --primary-hover:#0F766E;
+    --primary-soft:#F0FDFA; --secondary:#0891B2; --accent:#F97316;
+    --code-bg:#0F172A; --code-text:#E2E8F0;
+    --c-kw:#5EEAD4; --c-str:#FCD34D; --c-com:#64748B; --c-num:#FCA5A5;
+  }
+  :root[data-theme="dark"]{
+    --bg-canvas:#0B1220; --bg-surface:#111827; --bg-elevated:#1E293B;
+    --border:#1E293B; --text-primary:#F1F5F9; --text-secondary:#94A3B8;
+    --text-muted:#64748B; --primary:#14B8A6; --primary-hover:#0D9488;
+    --primary-soft:#134E4A; --secondary:#22D3EE; --accent:#FB923C;
+    --code-bg:#020617; --code-text:#E2E8F0;
+    --c-kw:#5EEAD4; --c-str:#FCD34D; --c-com:#64748B; --c-num:#FCA5A5;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--bg-canvas); color:var(--text-primary);
+    font-family:'Inter',system-ui,sans-serif; line-height:1.65; font-size:16px;
+  }
+  h1,h2,h3,h4{font-family:'Outfit',sans-serif; line-height:1.25; color:var(--text-primary);}
+
+  /* ===== Reading progress bar ===== */
+  #progress{position:fixed; top:0; left:0; height:3px; width:0;
+    background:linear-gradient(90deg,var(--primary),var(--secondary)); z-index:100; transition:width .1s;}
+
+  /* ===== Layout ===== */
+  .layout{display:flex; max-width:1280px; margin:0 auto;}
+  nav.toc{
+    position:sticky; top:0; align-self:flex-start; height:100vh; width:280px; flex:0 0 280px;
+    overflow-y:auto; padding:26px 18px; border-right:1px solid var(--border); background:var(--bg-surface);
+  }
+  nav.toc .brand{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+  nav.toc .logo{width:34px; height:34px; border-radius:9px;
+    background:linear-gradient(135deg,var(--primary),var(--secondary)); display:flex;
+    align-items:center; justify-content:center; color:#fff; font-weight:800; font-family:'Outfit';}
+  nav.toc .brand b{font-family:'Outfit'; font-size:18px;}
+  nav.toc .sub{font-size:12px; color:var(--text-muted); margin:0 0 18px 0;}
+  nav.toc a{display:block; padding:8px 12px; margin:2px 0; border-radius:8px; text-decoration:none;
+    color:var(--text-secondary); font-size:14px; font-weight:500; transition:.15s; border-left:3px solid transparent;}
+  nav.toc a .num{display:inline-block; width:22px; color:var(--text-muted); font-weight:600;}
+  nav.toc a:hover{background:var(--bg-elevated); color:var(--text-primary);}
+  nav.toc a.active{background:var(--primary-soft); color:var(--primary); border-left-color:var(--primary); font-weight:600;}
+
+  main{flex:1; min-width:0; padding:0 48px 120px; max-width:880px;}
+  section{padding-top:64px;}
+  section>h2{font-size:30px; margin:0 0 4px;}
+  .eyebrow{color:var(--primary); font-weight:700; font-size:13px; letter-spacing:.08em; text-transform:uppercase;}
+  p{color:var(--text-secondary);}
+  main a{color:var(--primary);}
+  code.inl{background:var(--bg-elevated); padding:2px 6px; border-radius:5px; font-family:'JetBrains Mono',monospace;
+    font-size:.86em; color:var(--primary-hover);}
+  strong{color:var(--text-primary);}
+  ul,ol{color:var(--text-secondary);}
+  li{margin:5px 0;}
+
+  /* ===== Hero ===== */
+  header.hero{padding:80px 48px 30px; max-width:880px;}
+  header.hero h1{font-size:46px; margin:0 0 14px; letter-spacing:-.02em;}
+  header.hero h1 .grad{background:linear-gradient(135deg,var(--primary),var(--secondary));
+    -webkit-background-clip:text; background-clip:text; color:transparent;}
+  header.hero .lead{font-size:18px; color:var(--text-secondary); max-width:660px;}
+  .pills{display:flex; flex-wrap:wrap; gap:8px; margin-top:22px;}
+  .pill{background:var(--bg-surface); border:1px solid var(--border); border-radius:999px;
+    padding:6px 14px; font-size:13px; font-weight:600; color:var(--text-secondary);}
+  .pill b{color:var(--primary);}
+
+  /* ===== Cards / callouts ===== */
+  .card{background:var(--bg-surface); border:1px solid var(--border); border-radius:14px;
+    padding:20px 22px; margin:18px 0;}
+  .note{border-left:4px solid var(--secondary); background:var(--bg-elevated); border-radius:0 10px 10px 0;
+    padding:14px 18px; margin:18px 0; font-size:14.5px;}
+  .note b{color:var(--secondary);}
+  .analogy{border-left:4px solid var(--accent); background:var(--bg-elevated); border-radius:0 10px 10px 0;
+    padding:14px 18px; margin:16px 0;}
+  .analogy b{color:var(--accent);}
+
+  .idea{border:1.5px dashed var(--primary); background:var(--primary-soft); border-radius:14px;
+    padding:18px 20px; margin:24px 0;}
+  :root[data-theme="dark"] .idea{background:rgba(20,184,166,.08);}
+  .idea h4{margin:0 0 10px; color:var(--primary-hover); display:flex; align-items:center; gap:8px;}
+  :root[data-theme="dark"] .idea h4{color:var(--primary);}
+  .idea ul{margin:0; padding-left:4px; list-style:none;}
+  .idea li{display:flex; gap:10px; align-items:baseline; margin:8px 0; color:var(--text-secondary);}
+  .stars{flex:0 0 auto; font-size:12px; letter-spacing:1px;}
+  .star-on{color:var(--accent);} .star-off{color:var(--border);}
+
+  /* ===== Code blocks ===== */
+  .code{position:relative; margin:16px 0; border-radius:12px; overflow:hidden; border:1px solid var(--border);}
+  .code .bar{display:flex; align-items:center; justify-content:space-between;
+    background:var(--bg-elevated); padding:6px 12px; font-size:12px; color:var(--text-muted);
+    font-family:'JetBrains Mono',monospace;}
+  .code .bar .file{color:var(--text-secondary);}
+  .code .copy{cursor:pointer; border:1px solid var(--border); background:var(--bg-surface);
+    color:var(--text-secondary); border-radius:6px; padding:2px 9px; font-size:11px;}
+  .code .copy:hover{color:var(--primary); border-color:var(--primary);}
+  pre{margin:0; padding:16px 18px; background:var(--code-bg); color:var(--code-text); overflow-x:auto;}
+  pre code{font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.6;}
+  .c-kw{color:var(--c-kw);} .c-str{color:var(--c-str);} .c-com{color:var(--c-com); font-style:italic;} .c-num{color:var(--c-num);}
+
+  /* ===== Flow diagram ===== */
+  .flow{margin:22px 0;}
+  .step{display:flex; gap:14px; align-items:stretch;}
+  .step .dot{flex:0 0 auto; width:34px; display:flex; flex-direction:column; align-items:center;}
+  .step .dot .n{width:34px; height:34px; border-radius:50%; background:var(--primary); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-family:'Outfit'; font-size:15px;}
+  .step .dot .line{flex:1; width:2px; background:var(--border); margin:4px 0;}
+  .step:last-child .dot .line{display:none;}
+  .step .body{padding-bottom:18px;}
+  .step .body .t{font-weight:600; color:var(--text-primary); font-family:'Outfit';}
+  .step .body .where{font-size:12px; font-family:'JetBrains Mono',monospace; color:var(--primary); margin-top:1px;}
+  .step .body .d{font-size:14px; color:var(--text-secondary); margin-top:3px;}
+  .step.ai .dot .n{background:var(--accent);}
+  .step.ai .body .where{color:var(--accent);}
+
+  /* layer boxes */
+  .arch{display:flex; flex-direction:column; gap:0; margin:22px 0;}
+  .arch .tier{border:1px solid var(--border); border-radius:12px; padding:14px 18px; background:var(--bg-surface);}
+  .arch .arrow{text-align:center; color:var(--text-muted); font-size:22px; padding:4px 0;}
+  .arch .tier h4{margin:0 0 4px;} .arch .tier .tag{font-size:12px; font-family:'JetBrains Mono',monospace; color:var(--primary);}
+  .arch .tier p{margin:6px 0 0; font-size:14px;}
+
+  /* interactive demo */
+  .demo{background:var(--bg-surface); border:1px solid var(--border); border-radius:14px; padding:18px; margin:20px 0;}
+  .demo .screen{background:var(--bg-canvas); border:1px solid var(--border); border-radius:10px; padding:14px; min-height:90px; font-size:14px;}
+  .demo .bubble{background:var(--primary-soft); border:1px solid #99F6E4; color:#134E4A; border-radius:14px 14px 14px 4px;
+    padding:8px 12px; display:inline-block; max-width:100%; white-space:pre-wrap;}
+  :root[data-theme="dark"] .demo .bubble{background:#134E4A; border-color:#0D9488; color:#CCFBF1;}
+  .demo .meta{font-size:11px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; margin-bottom:6px;}
+  .btn{background:var(--primary); color:#fff; border:none; border-radius:9px; padding:9px 18px;
+    font-weight:600; cursor:pointer; font-family:'Inter'; font-size:14px;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{opacity:.5; cursor:default;}
+
+  .toggle{position:fixed; top:14px; right:18px; z-index:120; background:var(--bg-surface);
+    border:1px solid var(--border); border-radius:999px; padding:7px 14px; cursor:pointer;
+    font-size:13px; font-weight:600; color:var(--text-secondary);}
+  .toggle:hover{color:var(--primary); border-color:var(--primary);}
+
+  table.mini{width:100%; border-collapse:collapse; margin:16px 0; font-size:14px;}
+  table.mini th,table.mini td{border:1px solid var(--border); padding:8px 12px; text-align:left;}
+  table.mini th{background:var(--bg-elevated); color:var(--text-primary); font-family:'Outfit';}
+  table.mini td{color:var(--text-secondary);}
+
+  .end{text-align:center; padding:40px 0 0; color:var(--text-muted); font-size:14px;}
+
+  @media(max-width:900px){
+    nav.toc{display:none;} main,header.hero{padding-left:22px; padding-right:22px;}
+    header.hero h1{font-size:34px;}
+  }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<button class="toggle" id="themeBtn">🌙 Chế độ tối</button>
+
+<div class="layout">
+  <!-- ===================== SIDEBAR ===================== -->
+  <nav class="toc" id="toc">
+    <div class="brand"><div class="logo">N</div><b>NexivraChat</b></div>
+    <p class="sub">Hướng dẫn hiểu source code · dành cho người mới</p>
+    <a href="#intro"><span class="num">0.</span>Mở đầu</a>
+    <a href="#tongthe"><span class="num">1.</span>Bức tranh tổng thể</a>
+    <a href="#tuduy"><span class="num">2.</span>Hành trang tư duy</a>
+    <a href="#xuongsong"><span class="num">3.</span>Luồng xương sống: gửi tin</a>
+    <a href="#ai"><span class="num">4.</span>Luồng "ảo diệu": hỏi AI</a>
+    <a href="#frontend"><span class="num">5.</span>Đào sâu Frontend</a>
+    <a href="#backend"><span class="num">6.</span>Đào sâu Backend</a>
+    <a href="#phu"><span class="num">7.</span>Các tính năng phụ</a>
+    <a href="#chay"><span class="num">8.</span>Chạy thử & đi tiếp</a>
+  </nav>
+
+  <div style="flex:1; min-width:0;">
+  <!-- ===================== HERO ===================== -->
+  <header class="hero" id="intro">
+    <span class="eyebrow">Tài liệu tự học</span>
+    <h1>Hiểu <span class="grad">NexivraChat</span> từ con số 0</h1>
+    <p class="lead">
+      Đây là bản đồ dẫn bạn đi xuyên qua một ứng dụng <b>chat thời gian thực có AI</b> thật —
+      từ lúc bạn bấm "Gửi" cho tới khi tin nhắn hiện trên màn hình người khác. Mỗi khái niệm
+      đều được giải thích bằng ví dụ đời thường, rồi chỉ thẳng vào <b>dòng code thật</b> trong dự án.
+      Không cần kiến thức nâng cao — chỉ cần tò mò.
+    </p>
+    <div class="pills">
+      <span class="pill">⚛️ <b>React 19</b> + TypeScript</span>
+      <span class="pill">🌐 <b>.NET 8</b> Web API</span>
+      <span class="pill">⚡ <b>SignalR</b> realtime</span>
+      <span class="pill">🗄️ <b>PostgreSQL</b> + Dapper</span>
+      <span class="pill">🤖 <b>Gemini AI</b> streaming</span>
+    </div>
+    <div class="note" style="margin-top:26px;">
+      <b>Cách đọc tài liệu này:</b> Đọc theo thứ tự từ trên xuống. Mỗi chương kết thúc bằng một khối
+      <b>💡 Mở rộng ý tưởng</b> — đó là gợi ý tính năng bạn có thể tự thêm sau này, kèm độ khó.
+      Bạn không cần hiểu 100% code — chỉ cần nắm được <i>vì sao nó tồn tại</i> và <i>nó nằm ở đâu</i>.
+    </div>
+  </header>
+
+  <main>
+  <!-- ===================== 1. TỔNG THỂ ===================== -->
+  <section id="tongthe">
+    <span class="eyebrow">Chương 1</span>
+    <h2>Bức tranh tổng thể</h2>
+    <p>
+      NexivraChat là một <b>phòng chat trên web</b>: nhiều người vào, nhắn tin theo nhóm hoặc riêng tư,
+      và có một <b>trợ lý AI</b> tên "Copilot" cùng tham gia. Điểm đặc biệt: tin nhắn xuất hiện
+      <b>ngay lập tức</b> với mọi người (thời gian thực), và AI trả lời <b>chảy ra từng chữ</b> như đang gõ.
+    </p>
+
+    <h3>Mọi web app đều có 2 nửa</h3>
+    <div class="analogy">
+      <b>Ví dụ như một nhà hàng:</b> <b>Frontend</b> là phòng ăn — bàn ghế, thực đơn, nơi khách nhìn thấy và
+      gọi món. <b>Backend</b> là nhà bếp — nơi chế biến, kho nguyên liệu (database), và đầu bếp giỏi (AI).
+      Khách (frontend) không bao giờ vào bếp; họ <b>gọi món qua người phục vụ</b> (gọi API). Nhà bếp nấu xong
+      rồi mang ra. NexivraChat tách hẳn 2 nửa này thành 2 dự án riêng.
+    </div>
+
+    <div class="arch">
+      <div class="tier">
+        <h4>🖥️ Frontend — thứ bạn nhìn thấy</h4>
+        <span class="tag">frontend/nexivra-chat-frontend · React + TypeScript + Vite</span>
+        <p>Chạy trong trình duyệt. Vẽ giao diện, nhận chữ bạn gõ, và nói chuyện với backend qua 2 con đường:
+        <b>REST API</b> (hỏi–đáp một lần) và <b>SignalR</b> (kết nối luôn mở để nhận tin tức thời).</p>
+      </div>
+      <div class="arrow">⇅ &nbsp;REST API (axios) &nbsp;+&nbsp; SignalR (WebSocket)</div>
+      <div class="tier">
+        <h4>⚙️ Backend — bộ não xử lý</h4>
+        <span class="tag">backend/NexivraChatBackend · .NET 8</span>
+        <p>Nhận yêu cầu, kiểm tra "vé vào cửa" (JWT), lưu/đọc dữ liệu, gọi AI, rồi phát tin nhắn cho đúng người.
+        Gồm <b>Controllers</b> (cổng REST), <b>ChatHub</b> (cổng realtime), <b>Repositories</b> (truy cập DB), <b>Services</b> (AI, dịch...).</p>
+      </div>
+      <div class="arrow">⇅ &nbsp;Dapper (câu lệnh SQL)</div>
+      <div class="tier">
+        <h4>🗄️ Database — kho lưu trữ lâu dài</h4>
+        <span class="tag">PostgreSQL · 5 bảng</span>
+        <p>Nơi cất giữ mọi thứ kể cả khi tắt máy: tài khoản, phòng chat, từng tin nhắn, hồ sơ người dùng.</p>
+      </div>
+    </div>
+
+    <p>
+      Toàn dự án xoay quanh đúng <b>5 bảng dữ liệu</b>: <code class="inl">users</code> (tài khoản),
+      <code class="inl">chat_rooms</code> (phòng nhóm), <code class="inl">private_chats</code> (hội thoại 1-1),
+      <code class="inl">messages</code> (mọi tin nhắn, kể cả của AI), và <code class="inl">user_profiles</code>
+      (hồ sơ + kết quả AI phân tích). Nắm được 5 bảng này là bạn đã hiểu một nửa hệ thống.
+    </p>
+
+    <div class="idea">
+      <h4>💡 Mở rộng ý tưởng</h4>
+      <ul>
+        <li><span class="stars"><span class="star-on">★</span><span class="star-off">★★</span></span>
+          <span><b>Emoji reactions:</b> thêm bảng <code class="inl">reactions</code> (message_id, user, emoji) để thả tim/like vào tin nhắn.</span></li>
+        <li><span class="stars"><span class="star-on">★★</span><span class="star-off">★</span></span>
+          <span><b>Đánh dấu đã đọc:</b> lưu "người X đã đọc tới tin nhắn Y" để hiện ✓✓ như Messenger.</span></li>
+        <li><span class="stars"><span class="star-on">★★★</span></span>
+          <span><b>Gửi ảnh/file:</b> thêm cột loại nội dung vào <code class="inl">messages</code> + nơi lưu file (ví dụ thư mục hoặc cloud).</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== 2. TƯ DUY ===================== -->
+  <section id="tuduy">
+    <span class="eyebrow">Chương 2</span>
+    <h2>Hành trang tư duy</h2>
+    <p>Trước khi đọc code, hãy nắm 6 khái niệm nền. Mỗi cái chỉ một câu cốt lõi — phần còn lại sẽ "thấm" dần khi đọc code.</p>
+
+    <div class="card">
+      <h3>1. Client – Server</h3>
+      <p><b>Client</b> (máy khách = trình duyệt của bạn) <b>xin</b>; <b>Server</b> (máy chủ = backend) <b>đáp</b>.
+      Client không tự lấy dữ liệu trong database — nó luôn phải nhờ server. Vì sao? Vì server mới là nơi kiểm soát:
+      ai được xem gì, mật khẩu đúng không, dữ liệu lưu ở đâu.</p>
+    </div>
+    <div class="card">
+      <h3>2. API & REST</h3>
+      <p><b>API</b> là "thực đơn" các yêu cầu mà server cho phép. <b>REST</b> là phong cách phổ biến nhất:
+      mỗi yêu cầu là một <i>lần hỏi – một lần đáp</i> rồi đóng. Ví dụ trong dự án:
+      <code class="inl">GET /api/rooms</code> = "cho tôi danh sách phòng", <code class="inl">POST /api/auth/login</code> = "đăng nhập giúp tôi".</p>
+    </div>
+    <div class="card">
+      <h3>3. Realtime — vì sao REST chưa đủ</h3>
+      <p>REST giống <b>gửi thư</b>: bạn hỏi mới có trả lời. Nhưng chat cần tin nhắn của người khác <b>tự bay tới</b>
+      mà bạn không phải hỏi. Đó là lúc cần <b>SignalR</b> (xây trên WebSocket) — một <b>đường dây điện thoại luôn mở</b>
+      giữa client và server, hai bên có thể "nói" bất cứ lúc nào. Đây là trái tim của app chat.</p>
+    </div>
+    <div class="card">
+      <h3>4. Database & SQL</h3>
+      <p>Database là cái tủ hồ sơ khổng lồ, chia thành <b>bảng</b> (như bảng tính Excel). <b>SQL</b> là ngôn ngữ ra lệnh:
+      <code class="inl">SELECT</code> (lấy ra), <code class="inl">INSERT</code> (thêm vào). Dự án dùng <b>Dapper</b> —
+      một công cụ giúp viết SQL thẳng và biến kết quả thành đối tượng C# gọn gàng.</p>
+    </div>
+    <div class="card">
+      <h3>5. JWT — tấm vé vào cửa</h3>
+      <p>Sau khi đăng nhập, server đưa bạn một <b>chuỗi mã hoá gọi là token</b> (tấm vé có dấu niêm phong, hạn 7 ngày).
+      Từ đó mỗi yêu cầu bạn <b>kèm tấm vé</b> này để server biết "à, đúng là bạn". Không cần gửi lại mật khẩu mỗi lần.</p>
+    </div>
+    <div class="card">
+      <h3>6. Gọi AI qua mạng</h3>
+      <p>App không tự "nghĩ". Nó <b>gửi câu hỏi qua mạng tới Gemini</b> (AI của Google) và nhận chữ trả về.
+      Điều hay: Gemini trả lời theo kiểu <b>streaming</b> — chữ về tới đâu hiện tới đó, không bắt bạn đợi cả đoạn.</p>
+    </div>
+
+    <div class="note">
+      <b>Mẹo:</b> Đừng cố thuộc lòng. Cứ đọc tiếp chương 3 — bạn sẽ thấy cả 6 khái niệm này "diễn" cùng nhau
+      trong một hành động duy nhất: bấm nút Gửi.
+    </div>
+  </section>
+
+  <!-- ===================== 3. XƯƠNG SỐNG ===================== -->
+  <section id="xuongsong">
+    <span class="eyebrow">Chương 3 · luồng cốt lõi</span>
+    <h2>🦴 Luồng xương sống: "Bấm gửi một tin nhắn"</h2>
+    <p>
+      Đây là hành trình quan trọng nhất. Hiểu nó là hiểu cách <b>mọi mảnh ghép nối với nhau</b>.
+      Ta theo chân một tin nhắn bình thường (chưa có AI) từ bàn phím của bạn tới màn hình mọi người trong phòng.
+    </p>
+
+    <div class="flow">
+      <div class="step"><div class="dot"><div class="n">1</div><div class="line"></div></div>
+        <div class="body"><div class="t">Bạn gõ và bấm Gửi</div>
+          <div class="where">ChatView.tsx → handleSendMessage()</div>
+          <div class="d">React đang giữ chữ bạn gõ trong một biến trạng thái (<code class="inl">inputText</code>). Khi bấm Gửi, nó gọi hàm xử lý.</div></div></div>
+      <div class="step"><div class="dot"><div class="n">2</div><div class="line"></div></div>
+        <div class="body"><div class="t">Frontend "gọi" qua đường dây SignalR</div>
+          <div class="where">connection.invoke('SendMessage', ...)</div>
+          <div class="d">Không phải REST — mà gọi thẳng một <i>phương thức</i> trên server qua kết nối luôn mở.</div></div></div>
+      <div class="step"><div class="dot"><div class="n">3</div><div class="line"></div></div>
+        <div class="body"><div class="t">ChatHub bên backend nhận được</div>
+          <div class="where">ChatHub.cs → SendMessage(roomId, content)</div>
+          <div class="d">Hub biết bạn là ai nhờ tấm vé JWT đính kèm lúc kết nối.</div></div></div>
+      <div class="step"><div class="dot"><div class="n">4</div><div class="line"></div></div>
+        <div class="body"><div class="t">Lưu tin nhắn vào PostgreSQL</div>
+          <div class="where">MessageRepository.SaveNewMessage()</div>
+          <div class="d">Dùng Dapper chạy câu lệnh <code class="inl">INSERT</code>, lấy về <code class="inl">id</code> thật của tin nhắn.</div></div></div>
+      <div class="step"><div class="dot"><div class="n">5</div><div class="line"></div></div>
+        <div class="body"><div class="t">Phát tin cho cả phòng</div>
+          <div class="where">Clients.Group(roomString).SendAsync("ReceiveMessage", ...)</div>
+          <div class="d">Server "hét" vào nhóm phòng đó. Mọi người đang trong phòng đều nghe thấy.</div></div></div>
+      <div class="step"><div class="dot"><div class="n">6</div></div>
+        <div class="body"><div class="t">Frontend mọi người nhận & hiện tin</div>
+          <div class="where">ChatView.tsx → conn.on('ReceiveMessage', ...)</div>
+          <div class="d">Mỗi client thêm tin nhắn vào danh sách → React tự vẽ lại → bong bóng chat xuất hiện.</div></div></div>
+    </div>
+
+    <h3>Xem code thật — bước 1 &amp; 2 (Frontend gửi đi)</h3>
+    <p>Để ý: gửi tin nhắn <b>không dùng axios/REST</b>, mà gọi <code class="inl">connection.invoke(...)</code> qua SignalR.</p>
+    <div class="code" data-lang="tsx"><div class="bar"><span class="file">ChatView.tsx — handleSendMessage()</span><button class="copy">Sao chép</button></div><script type="text/plain">
+const handleSendMessage = async (textToSend?: string) => {
+  const text = textToSend !== undefined ? textToSend : inputText;
+  if (!text.trim() || !connection) return;          // chặn gửi rỗng / chưa kết nối
+
+  if (activeChatType === 'room') {
+    if (activeRoomId === null) return;
+    // Gọi thẳng phương thức "SendMessage" trên ChatHub bên backend:
+    await connection.invoke('SendMessage', activeRoomId, text.trim());
+  } else {
+    // Chat 1-1 thì gọi phương thức khác
+    await connection.invoke('SendPrivateMessage', activeRecipient.id, text.trim());
+  }
+  setInputText('');   // xoá ô nhập sau khi gửi
+};
+</script></div>
+
+    <div class="note"><b>Còn JWT thì sao?</b> Mọi yêu cầu REST đều được tự động đính kèm tấm vé nhờ một
+    "người gác cổng" cấu hình một lần trong <code class="inl">api.ts</code>:</div>
+    <div class="code" data-lang="ts"><div class="bar"><span class="file">services/api.ts — interceptor đính kèm JWT</span><button class="copy">Sao chép</button></div><script type="text/plain">
+// "Chặn" mọi request đi ra, gắn thêm header Authorization rồi mới cho đi.
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');     // lấy vé đã lưu lúc đăng nhập
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;  // đính kèm vé
+  }
+  return config;
+});
+</script></div>
+
+    <h3>Xem code thật — bước 3, 4, 5 (Backend xử lý)</h3>
+    <p>Đây là "nhà bếp". Chú ý 3 việc nối tiếp: <b>lưu DB → phát cho phòng</b>. (Phần AI ở chương sau.)</p>
+    <div class="code" data-lang="csharp"><div class="bar"><span class="file">Hubs/ChatHub.cs — SendMessage()</span><button class="copy">Sao chép</button></div><script type="text/plain">
+public async Task SendMessage(int roomId, string content)
+{
+    var username = Context.User?.Identity?.Name ?? "Ẩn danh";  // biết bạn là ai nhờ JWT
+    var roomString = roomId.ToString();
+
+    // 1. Đóng gói tin nhắn rồi LƯU vào database
+    var userMessage = new Message {
+        RoomId = roomId, SenderName = username, Content = content,
+        CreatedAt = DateTime.Now, IsAi = false
+    };
+    await _messageRepository.SaveNewMessage(userMessage);  // -> chạy INSERT
+
+    // 2. PHÁT tin nhắn này cho mọi người đang ở trong phòng
+    await Clients.Group(roomString).SendAsync("ReceiveMessage", userMessage);
+
+    // 3. (Nếu nội dung bắt đầu bằng @copilot thì gọi AI — xem Chương 4)
+}
+</script></div>
+
+    <p>Còn đây là chỗ thật sự "nói chuyện" với database — viết SQL tay, rất dễ đọc:</p>
+    <div class="code" data-lang="csharp"><div class="bar"><span class="file">Repositories/MessageRepository.cs — SaveNewMessage()</span><button class="copy">Sao chép</button></div><script type="text/plain">
+public async Task SaveNewMessage(Message message)
+{
+    using (var connection = _context.CreateConnection())
+    {
+        var query = @"
+            INSERT INTO messages (room_id, private_chat_id, sender_name, content, created_at, is_ai)
+            VALUES (@room_id, @private_chat_id, @sender_name, @content, @created_at, @is_ai)
+            RETURNING id;";                 // RETURNING id: xin lại id vừa tạo
+
+        var id = await connection.ExecuteScalarAsync<int>(query, new {
+            room_id = message.RoomId, sender_name = message.SenderName,
+            content = message.Content, is_ai = message.IsAi
+            /* ... các cột khác ... */
+        });
+        message.Id = id;   // gắn id thật vào đối tượng
+    }
+}
+</script></div>
+    <div class="note"><b>Vì sao dùng <code class="inl">@room_id</code> chứ không nối chuỗi?</b> Đây gọi là
+    <b>tham số hoá</b> — chống lỗ hổng "SQL Injection" (kẻ xấu chèn câu lệnh phá hoại qua ô nhập). Quy tắc vàng: <b>không bao giờ</b> dán thẳng dữ liệu người dùng vào câu SQL.</div>
+
+    <h3>Xem code thật — bước 6 (Frontend nhận tin)</h3>
+    <p>Lúc kết nối, frontend "đăng ký lắng nghe" sự kiện <code class="inl">ReceiveMessage</code>. Khi server phát, hàm này chạy:</p>
+    <div class="code" data-lang="ts"><div class="bar"><span class="file">ChatView.tsx — lắng nghe tin mới</span><button class="copy">Sao chép</button></div><script type="text/plain">
+conn.on('ReceiveMessage', (newMessage: Message) => {
+  // chỉ thêm nếu đúng phòng đang mở
+  if (newMessage.roomId === activeRoomIdRef.current) {
+    setMessages((prev) => {
+      if (prev.some(m => m.id === newMessage.id)) return prev;  // tránh trùng
+      return [...prev, newMessage];        // thêm vào cuối danh sách
+    });
+  }
+});
+</script></div>
+    <div class="analogy"><b>Phép màu của React nằm ở <code class="inl">setMessages</code>:</b> bạn chỉ
+    <i>cập nhật dữ liệu</i> (thêm tin vào mảng), còn việc <i>vẽ lại giao diện</i> React tự lo. Bạn không hề
+    đụng tay viết HTML — đây là tư duy "khai báo" (declarative) cốt lõi của React.</div>
+
+    <div class="idea">
+      <h4>💡 Mở rộng ý tưởng</h4>
+      <ul>
+        <li><span class="stars"><span class="star-on">★</span><span class="star-off">★★</span></span>
+          <span><b>Giới hạn độ dài tin nhắn</b> + đếm ký tự còn lại ngay ô nhập (chặn ở cả frontend lẫn ChatHub).</span></li>
+        <li><span class="stars"><span class="star-on">★★</span><span class="star-off">★</span></span>
+          <span><b>Sửa / thu hồi tin nhắn:</b> thêm phương thức <code class="inl">EditMessage</code> trên Hub + sự kiện <code class="inl">MessageEdited</code> để cập nhật cho cả phòng.</span></li>
+        <li><span class="stars"><span class="star-on">★★★</span></span>
+          <span><b>Tin nhắn trả lời (reply):</b> thêm cột <code class="inl">reply_to_id</code> và hiển thị trích dẫn tin gốc.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== 4. AI ===================== -->
+  <section id="ai">
+    <span class="eyebrow">Chương 4 · phần hay nhất</span>
+    <h2>✨ Luồng "ảo diệu": hỏi AI bằng <code class="inl">@copilot</code></h2>
+    <p>
+      Khi tin nhắn bắt đầu bằng <code class="inl">@copilot</code>, ngoài việc lưu &amp; phát như bình thường,
+      backend còn <b>gọi Gemini và stream câu trả lời về từng chữ</b>. Có một bài toán hóc búa ở đây mà cách
+      giải của nó rất "đắt giá" để học.
+    </p>
+
+    <h3>Bài toán: làm sao hiện tin nhắn "đang được viết"?</h3>
+    <p>
+      Tin nhắn thật chỉ có <code class="inl">id</code> sau khi lưu xong vào DB. Nhưng AI cần hiện bong bóng
+      <b>ngay</b> (trước khi viết xong) để chữ chảy vào đó. Giải pháp: tạo một <b>id tạm thời là số âm</b> để
+      "giữ chỗ", rồi khi xong mới thay bằng id thật.
+    </p>
+    <div class="analogy"><b>Như số thứ tự tạm ở quán phở:</b> bạn chưa có bàn (id thật) nên được phát thẻ số âm
+    "-1" để giữ chỗ. Phở nấu xong, nhân viên gọi đúng thẻ "-1" đó và xếp bạn vào bàn số 42 (id thật).</div>
+
+    <p>Vì sao là <b>số âm</b>? Vì id thật từ DB luôn dương (1, 2, 3...). Dùng số âm thì <b>chắc chắn không bao giờ đụng</b> id thật. Và để mỗi lần một số âm khác nhau, dự án dùng một bộ đếm an toàn khi nhiều người hỏi cùng lúc:</p>
+    <div class="code" data-lang="csharp"><div class="bar"><span class="file">Services/TempMessageId.cs</span><button class="copy">Sao chép</button></div><script type="text/plain">
+public static class TempMessageId
+{
+    private static int _counter = 0;
+
+    public static int Next()
+    {
+        // Interlocked.Decrement: trừ đi 1 một cách "an toàn luồng".
+        // Dù 100 người bấm @copilot cùng lúc, mỗi người vẫn nhận một số âm RIÊNG (-1, -2, -3...).
+        return Interlocked.Decrement(ref _counter);
+    }
+}
+</script></div>
+
+    <h3>Toàn cảnh luồng AI</h3>
+    <div class="flow">
+      <div class="step ai"><div class="dot"><div class="n">A</div><div class="line"></div></div>
+        <div class="body"><div class="t">Phát hiện tiền tố @copilot</div>
+          <div class="where">ChatHub.SendMessage()</div>
+          <div class="d">Tách lấy câu hỏi, gom 10 tin gần nhất làm "ngữ cảnh" để AI hiểu mạch trò chuyện.</div></div></div>
+      <div class="step ai"><div class="dot"><div class="n">B</div><div class="line"></div></div>
+        <div class="body"><div class="t">Gửi bong bóng rỗng với id âm</div>
+          <div class="where">ReceiveMessage(aiPlaceholder, id = -1)</div>
+          <div class="d">Frontend hiện ngay "Trợ lý AI đang phản hồi…" để giữ chỗ.</div></div></div>
+      <div class="step ai"><div class="dot"><div class="n">C</div><div class="line"></div></div>
+        <div class="body"><div class="t">Stream từng mẩu chữ từ Gemini</div>
+          <div class="where">await foreach → ReceiveAiToken(-1, "mẩu chữ")</div>
+          <div class="d">Mỗi mẩu chữ về tới đâu, frontend nối vào bong bóng id âm tới đó.</div></div></div>
+      <div class="step ai"><div class="dot"><div class="n">D</div><div class="line"></div></div>
+        <div class="body"><div class="t">Lưu câu trả lời hoàn chỉnh vào DB</div>
+          <div class="where">SaveNewMessage(finalAiMessage)</div>
+          <div class="d">Giờ mới có id thật (ví dụ 42).</div></div></div>
+      <div class="step ai"><div class="dot"><div class="n">E</div></div>
+        <div class="body"><div class="t">Báo hoàn tất — đổi id âm thành id thật</div>
+          <div class="where">ReceiveAiComplete(-1, 42, nội dung)</div>
+          <div class="d">Frontend tìm bong bóng id -1, đổi thành id 42. Xong!</div></div></div>
+    </div>
+
+    <h3>Code backend — trái tim của tính năng</h3>
+    <div class="code" data-lang="csharp"><div class="bar"><span class="file">Hubs/ChatHub.cs — phần xử lý @copilot</span><button class="copy">Sao chép</button></div><script type="text/plain">
+if (content.Trim().StartsWith("@copilot", StringComparison.OrdinalIgnoreCase))
+{
+    var queryText = content.Replace("@copilot", "").Trim();
+
+    // (A) Gom 10 tin gần nhất làm ngữ cảnh hội thoại cho AI
+    var recentMessages = await _messageRepository.GetMessagesByRoom(roomId, 10, 0);
+    var conversationContext = new StringBuilder();
+    foreach (var msg in recentMessages)
+        conversationContext.AppendLine($"{(msg.IsAi ? "AI Copilot" : msg.SenderName)}: {msg.Content}");
+
+    // (B) Tạo bong bóng rỗng với ID ÂM để giữ chỗ, phát ngay cho phòng
+    var tempAiMessageId = TempMessageId.Next();        // ví dụ: -1
+    var aiPlaceholder = new Message {
+        Id = tempAiMessageId, RoomId = roomId, SenderName = "AI Copilot",
+        Content = "", IsAi = true
+    };
+    await Clients.Group(roomString).SendAsync("ReceiveMessage", aiPlaceholder);
+
+    // (C) Stream từng mẩu chữ từ Gemini về phòng theo thời gian thực
+    var compiledResponse = new StringBuilder();
+    await foreach (var token in _aiService.StreamResponseAsync(queryText, conversationContext.ToString()))
+    {
+        compiledResponse.Append(token);
+        await Clients.Group(roomString).SendAsync("ReceiveAiToken", tempAiMessageId, token);
+    }
+
+    // (D) Lưu câu trả lời hoàn chỉnh -> có id thật
+    var finalAiMessage = new Message {
+        RoomId = roomId, SenderName = "AI Copilot",
+        Content = compiledResponse.ToString(), IsAi = true
+    };
+    await _messageRepository.SaveNewMessage(finalAiMessage);
+
+    // (E) Báo hoàn tất: đổi id âm (-1) thành id thật (vd 42)
+    await Clients.Group(roomString)
+        .SendAsync("ReceiveAiComplete", tempAiMessageId, finalAiMessage.Id, finalAiMessage.Content);
+}
+</script></div>
+
+    <div class="note"><b>Từ khoá đáng chú ý:</b> <code class="inl">await foreach</code> +
+    <code class="inl">IAsyncEnumerable&lt;string&gt;</code> trong <code class="inl">AiService</code> nghĩa là
+    "lặp qua một dòng dữ liệu chảy dần về theo thời gian" — chính là streaming. Server đọc từng dòng từ Gemini
+    rồi <code class="inl">yield return</code> ra ngay, không đợi gom hết.</div>
+
+    <h3>Code frontend — nối chữ vào bong bóng</h3>
+    <div class="code" data-lang="ts"><div class="bar"><span class="file">ChatView.tsx — nhận token & hoàn tất</span><button class="copy">Sao chép</button></div><script type="text/plain">
+// Mỗi mẩu chữ về: tìm bong bóng có id tạm (âm) và NỐI thêm chữ
+conn.on('ReceiveAiToken', (tempId: number, tokenStr: string) => {
+  setMessages((prev) => prev.map((msg) =>
+    msg.id === tempId ? { ...msg, content: msg.content + tokenStr } : msg
+  ));
+});
+
+// Hoàn tất: đổi id âm -> id thật, gắn nội dung cuối cùng
+conn.on('ReceiveAiComplete', (tempId: number, finalId: number, finalContent: string) => {
+  setMessages((prev) => prev.map((msg) =>
+    msg.id === tempId ? { ...msg, id: finalId, content: finalContent } : msg
+  ));
+});
+</script></div>
+
+    <h3>🎮 Thử cảm giác streaming ngay tại đây</h3>
+    <p>Bấm nút dưới đây để mô phỏng đúng cách bong bóng AI hoạt động — id âm giữ chỗ, chữ chảy dần, rồi đổi sang id thật:</p>
+    <div class="demo">
+      <div class="screen">
+        <div class="meta" id="demoMeta">id: (chưa có) · trạng thái: chờ</div>
+        <div class="bubble" id="demoBubble">Bấm "Hỏi @copilot" để bắt đầu…</div>
+      </div>
+      <div style="margin-top:12px;"><button class="btn" id="demoBtn">▶ Hỏi @copilot</button></div>
+    </div>
+
+    <div class="note"><b>Không có API key vẫn chạy được!</b> <code class="inl">AiService</code> có "chế độ giả lập":
+    nếu chưa cấu hình Gemini key, nó trả về một đoạn mẫu chạy từng chữ — đủ để bạn thấy luồng streaming hoạt động
+    mà không tốn tiền gọi AI thật.</div>
+
+    <div class="idea">
+      <h4>💡 Mở rộng ý tưởng</h4>
+      <ul>
+        <li><span class="stars"><span class="star-on">★</span><span class="star-off">★★</span></span>
+          <span><b>Nhiều "tính cách" AI:</b> đổi <code class="inl">systemInstruction</code> để có Copilot vui tính, Copilot nghiêm túc, Copilot dạy học...</span></li>
+        <li><span class="stars"><span class="star-on">★★</span><span class="star-off">★</span></span>
+          <span><b>Nút "Dừng tạo":</b> cho phép huỷ stream giữa chừng (truyền <code class="inl">CancellationToken</code> vào <code class="inl">StreamResponseAsync</code>).</span></li>
+        <li><span class="stars"><span class="star-on">★★★</span></span>
+          <span><b>AI nhớ lâu hơn:</b> thay vì 10 tin gần nhất, tóm tắt cả lịch sử phòng để Copilot "nhớ" bối cảnh dài.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== 5. FRONTEND ===================== -->
+  <section id="frontend">
+    <span class="eyebrow">Chương 5</span>
+    <h2>Đào sâu Frontend (React)</h2>
+    <p>Giờ bạn đã thấy frontend "diễn" trong luồng thật, ta soi kỹ vài ý tưởng cốt lõi của React xuất hiện khắp dự án.</p>
+
+    <h3>State — "trí nhớ tạm" của giao diện</h3>
+    <p>Mỗi <code class="inl">useState</code> là một mẩu trí nhớ. Khi nó đổi, React vẽ lại phần liên quan. Xem <code class="inl">ChatView</code> khai báo cả "bộ não" giao diện chat:</p>
+    <div class="code" data-lang="ts"><div class="bar"><span class="file">ChatView.tsx — một vài state tiêu biểu</span><button class="copy">Sao chép</button></div><script type="text/plain">
+const [messages, setMessages] = useState<Message[]>([]);        // danh sách tin nhắn
+const [inputText, setInputText] = useState('');                 // chữ trong ô nhập
+const [connection, setConnection] = useState<HubConnection | null>(null); // kết nối realtime
+const [onlineUsers, setOnlineUsers] = useState<string[]>([]);   // ai đang online
+const [typingUsers, setTypingUsers] = useState<string[]>([]);   // ai đang gõ
+</script></div>
+
+    <h3><code class="inl">useEffect</code> — làm việc "bên lề" đúng lúc</h3>
+    <p>Có những việc không phải vẽ giao diện, mà là <i>tác động ra ngoài</i>: mở kết nối SignalR, gọi API tải lịch sử,
+    tự cuộn xuống cuối. Những việc đó nằm trong <code class="inl">useEffect</code>. Ví dụ: tải danh sách phòng đúng <b>một lần</b> khi màn hình chat mở ra.</p>
+
+    <h3>Hiệu năng: <code class="inl">React.memo</code> — vì sao tách <code class="inl">MessageBubble</code></h3>
+    <p>Khi AI stream, danh sách tin nhắn cập nhật <b>liên tục mỗi mẩu chữ</b>. Nếu mỗi lần đó React vẽ lại
+    <b>toàn bộ</b> bong bóng thì rất tốn và gây giật. Giải pháp: tách mỗi bong bóng thành component riêng bọc
+    <code class="inl">React.memo</code> — nó chỉ vẽ lại <b>nếu dữ liệu của chính nó đổi</b>.</p>
+    <div class="code" data-lang="tsx"><div class="bar"><span class="file">components/MessageBubble.tsx — cuối file</span><button class="copy">Sao chép</button></div><script type="text/plain">
+const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({ msg, ... }) => {
+  // ...vẽ một bong bóng: tên người gửi, nội dung, nút Dịch...
+};
+
+// React.memo: chỉ vẽ lại bong bóng nào có props thay đổi.
+// Khi AI stream, chỉ ĐÚNG bong bóng đang nhận chữ vẽ lại, các bong bóng cũ đứng yên.
+export const MessageBubble = React.memo(MessageBubbleComponent);
+</script></div>
+    <div class="note"><b>Mẹo đi kèm:</b> để <code class="inl">memo</code> phát huy tác dụng, các hàm truyền xuống
+    (như <code class="inl">onTranslate</code>) phải <b>ổn định</b>, không bị tạo mới mỗi lần — nên dự án bọc chúng
+    trong <code class="inl">useCallback</code>. Đây là một cặp đôi rất hay gặp khi tối ưu React.</div>
+
+    <h3>Tải lười (lazy) — chỉ tải khi cần</h3>
+    <p>Màn hình hồ sơ (<code class="inl">ProfileView</code>) khá nặng nhưng ít khi mở. Dự án dùng
+    <code class="inl">React.lazy</code> để <b>tách nó ra khỏi gói tải ban đầu</b>, chỉ tải khi bạn bấm xem hồ sơ lần đầu → app mở nhanh hơn.</p>
+    <div class="code" data-lang="ts"><div class="bar"><span class="file">ChatView.tsx — đầu file</span><button class="copy">Sao chép</button></div><script type="text/plain">
+// Tách ProfileView thành "gói" riêng, chỉ tải khi thật sự dùng tới
+const ProfileView = lazy(() =>
+  import('./ProfileView').then((m) => ({ default: m.ProfileView }))
+);
+</script></div>
+
+    <h3>Theme sáng/tối bằng CSS Variables</h3>
+    <p>Toàn bộ màu được khai báo dưới dạng <b>biến CSS</b> (token) trong <code class="inl">index.css</code>,
+    chia theo <code class="inl">[data-theme="light"]</code> và <code class="inl">[data-theme="dark"]</code>.
+    Đổi theme = đổi <i>một thuộc tính</i> trên thẻ gốc, mọi màu tự cập nhật. (Chính trang bạn đang đọc cũng dùng đúng kỹ thuật này — bấm nút "Chế độ tối" góc trên!)</p>
+
+    <div class="idea">
+      <h4>💡 Mở rộng ý tưởng</h4>
+      <ul>
+        <li><span class="stars"><span class="star-on">★</span><span class="star-off">★★</span></span>
+          <span><b>Âm thanh khi có tin mới</b> + đổi tiêu đề tab "(1) NexivraChat" khi tab đang ẩn.</span></li>
+        <li><span class="stars"><span class="star-on">★★</span><span class="star-off">★</span></span>
+          <span><b>Tìm kiếm tin nhắn</b> trong phòng (ô search + lọc danh sách <code class="inl">messages</code>).</span></li>
+        <li><span class="stars"><span class="star-on">★★★</span></span>
+          <span><b>Cuộn ảo (virtual list):</b> chỉ vẽ tin trong tầm nhìn để mượt khi phòng có hàng nghìn tin.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== 6. BACKEND ===================== -->
+  <section id="backend">
+    <span class="eyebrow">Chương 6</span>
+    <h2>Đào sâu Backend (.NET 8)</h2>
+
+    <h3><code class="inl">Program.cs</code> — bảng cấu hình trung tâm</h3>
+    <p>File này như "bảng điện" bật/cấu hình mọi thứ khi khởi động: đăng ký các dịch vụ, bật JWT, bật SignalR, cho phép frontend kết nối (CORS).</p>
+    <div class="code" data-lang="csharp"><div class="bar"><span class="file">Program.cs — các phần chính</span><button class="copy">Sao chép</button></div><script type="text/plain">
+builder.Services.AddSignalR();                       // bật realtime
+builder.Services.AddScoped<MessageRepository>();     // đăng ký repo để "tiêm" vào nơi cần
+builder.Services.AddHttpClient<AiService>();         // AiService nhận HttpClient quản lý sẵn
+
+// Bật xác thực bằng JWT (kiểm tra tấm vé trên mỗi request)
+builder.Services.AddAuthentication(...).AddJwtBearer(options => { ... });
+
+// CORS: cho phép đúng frontend (localhost:5173) gọi sang, kèm AllowCredentials cho SignalR
+builder.Services.AddCors(options => { ... });
+
+var app = builder.Build();
+app.MapControllers();            // gắn các cổng REST
+app.MapHub<ChatHub>("/chatHub"); // gắn cổng realtime tại đường dẫn /chatHub
+</script></div>
+    <div class="note"><b>Khái niệm "Dependency Injection" (DI):</b> bạn không tự <code class="inl">new</code> ra
+    <code class="inl">MessageRepository</code> trong ChatHub. Thay vào đó bạn <b>khai báo cần nó</b> ở hàm khởi tạo,
+    và .NET tự "tiêm" vào. Nhờ vậy code dễ thay thế, dễ test. Để ý ChatHub nhận sẵn 4 thứ qua constructor.</div>
+
+    <h3>Controllers vs Hub — hai loại cổng</h3>
+    <table class="mini">
+      <tr><th></th><th>Controller (REST)</th><th>Hub (SignalR)</th></tr>
+      <tr><td><b>Kiểu</b></td><td>Hỏi 1 lần – đáp 1 lần</td><td>Kết nối luôn mở, 2 chiều</td></tr>
+      <tr><td><b>Dùng cho</b></td><td>Đăng nhập, tải danh sách phòng, lịch sử, dịch</td><td>Gửi/nhận tin tức thời, presence, gõ phím, stream AI</td></tr>
+      <tr><td><b>Ví dụ</b></td><td><code class="inl">AuthController</code>, <code class="inl">RoomsController</code></td><td><code class="inl">ChatHub</code></td></tr>
+    </table>
+
+    <h3>Mật khẩu được lưu thế nào?</h3>
+    <p>Tuyệt đối <b>không lưu mật khẩu thật</b>. Khi đăng ký, dự án dùng <code class="inl">PasswordHasher</code> biến
+    mật khẩu thành một chuỗi băm không thể đảo ngược. Lúc đăng nhập thì so khớp chuỗi băm, không so mật khẩu gốc.</p>
+    <div class="code" data-lang="csharp"><div class="bar"><span class="file">Controllers/AuthController.cs — Register()</span><button class="copy">Sao chép</button></div><script type="text/plain">
+var user = new User { Username = dto.Username, CreatedAt = DateTime.Now };
+// Băm mật khẩu trước khi lưu — DB chỉ thấy chuỗi băm, không thấy mật khẩu thật
+user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
+await _userRepository.Create(user);
+
+var token = _tokenService.CreateToken(user);   // cấp "tấm vé" JWT
+return Ok(new AuthResponseDto { Username = user.Username, Token = token });
+</script></div>
+
+    <h3>Repository + Dapper — nói chuyện với DB sạch sẽ</h3>
+    <p>Mọi truy cập DB gom vào thư mục <code class="inl">Repositories/</code>. Hai nguyên tắc tốt của dự án:</p>
+    <ul>
+      <li><b>Liệt kê cột rõ ràng</b> (không dùng <code class="inl">SELECT *</code>) → biết chính xác lấy gì, tránh kéo dữ liệu thừa.</li>
+      <li><b>Async "tới cùng"</b> (<code class="inl">await ... QueryAsync</code>) → server phục vụ được nhiều người cùng lúc mà không "kẹt luồng".</li>
+    </ul>
+    <div class="code" data-lang="csharp"><div class="bar"><span class="file">MessageRepository.cs — GetMessagesByRoom()</span><button class="copy">Sao chép</button></div><script type="text/plain">
+public async Task<List<Message>> GetMessagesByRoom(int roomId, int limit = 50, int offset = 0)
+{
+    using (var connection = _context.CreateConnection())
+    {
+        // cột liệt kê rõ ràng + tham số hoá + phân trang (limit/offset)
+        var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai " +
+                    "FROM messages WHERE room_id = @roomId ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
+        var result = (await connection.QueryAsync<Message>(query, new { roomId, limit, offset })).ToList();
+        result.Reverse();   // đảo lại cho đúng thứ tự thời gian tăng dần
+        return result;
+    }
+}
+</script></div>
+
+    <div class="idea">
+      <h4>💡 Mở rộng ý tưởng</h4>
+      <ul>
+        <li><span class="stars"><span class="star-on">★</span><span class="star-off">★★</span></span>
+          <span><b>Quy tắc mật khẩu mạnh</b> + kiểm tra phía backend (độ dài, chữ hoa/số).</span></li>
+        <li><span class="stars"><span class="star-on">★★</span><span class="star-off">★</span></span>
+          <span><b>Phân quyền:</b> thêm vai trò "chủ phòng" được xoá tin / kick người (kiểm tra quyền trong Hub).</span></li>
+        <li><span class="stars"><span class="star-on">★★★</span></span>
+          <span><b>Giới hạn tần suất (rate limit):</b> chặn spam tin nhắn / spam gọi AI để tránh lạm dụng.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== 7. PHỤ ===================== -->
+  <section id="phu">
+    <span class="eyebrow">Chương 7</span>
+    <h2>Các tính năng phụ (cùng một tư duy)</h2>
+    <p>Mấy tính năng còn lại đều lặp lại đúng các khuôn mẫu bạn đã học. Nhận ra khuôn mẫu là bạn đọc code nhanh hơn nhiều.</p>
+
+    <h3>① Dịch tin nhắn — dùng REST, không cần realtime</h3>
+    <p>Dịch là việc "hỏi 1 lần – đáp 1 lần" nên dùng REST (axios) chứ không qua SignalR. Frontend tự đoán hướng dịch
+    (có dấu tiếng Việt thì dịch sang Anh, ngược lại sang Việt) rồi gọi <code class="inl">POST /api/translation</code>:</p>
+    <div class="code" data-lang="ts"><div class="bar"><span class="file">ChatView.tsx — handleTranslateMessage()</span><button class="copy">Sao chép</button></div><script type="text/plain">
+const handleTranslateMessage = useCallback(async (msgId: number, text: string) => {
+  const isVietnamese = /[àáảãạă...]/i.test(text);          // có dấu tiếng Việt?
+  const targetLanguage = isVietnamese ? 'English' : 'Vietnamese';
+
+  const response = await api.post('/translation', { text, targetLanguage });
+  setTranslations(prev => ({ ...prev, [msgId]: response.data.translatedText }));
+}, []);
+</script></div>
+    <p>Backend (<code class="inl">TranslationService</code>) cũng gọi Gemini như AiService, nhưng dùng một prompt
+    chuyên để dịch và trả về <b>một lần</b> (không stream).</p>
+
+    <h3>② Phân tích tính cách bằng AI</h3>
+    <p>Khuôn mẫu: lấy ~30 tin gần nhất của một người → gửi cho Gemini kèm yêu cầu "đánh giá tính cách, trả về JSON"
+    → lưu kết quả vào cột <code class="inl">ai_analysis_json</code> (kiểu <code class="inl">JSONB</code>) trong bảng
+    <code class="inl">user_profiles</code> → <code class="inl">ProfileView</code> đọc ra và vẽ biểu đồ/thẻ chỉ số.</p>
+    <div class="note"><b>Vì sao kiểu JSONB?</b> Vì kết quả AI có cấu trúc linh hoạt (nhiều chỉ số khác nhau). PostgreSQL
+    cho phép lưu nguyên cục JSON mà vẫn truy vấn được — tiện hơn là tạo chục cột cứng nhắc.</div>
+
+    <h3>③ Presence (ai online) &amp; "đang gõ…"</h3>
+    <p>Cả hai đều là <b>thông tin tạm thời</b>, không cần lưu DB — nên giữ trong bộ nhớ qua
+    <code class="inl">PresenceTracker</code>. Khi ai vào/ra phòng, Hub phát <code class="inl">PresenceUpdate</code>
+    cho cả phòng. Khi gõ, frontend gửi tín hiệu nhưng <b>"debounce"</b> để khỏi spam:</p>
+    <div class="code" data-lang="ts"><div class="bar"><span class="file">ChatView.tsx — handleInputChange() (rút gọn)</span><button class="copy">Sao chép</button></div><script type="text/plain">
+const handleInputChange = (value: string) => {
+  setInputText(value);
+  if (!isTypingRef.current) {                 // chỉ báo "bắt đầu gõ" một lần
+    isTypingRef.current = true;
+    sendTyping(true);
+  }
+  // Hẹn giờ: 2 giây không gõ thêm thì báo "đã ngừng gõ"
+  clearTimeout(typingTimeoutRef.current);
+  typingTimeoutRef.current = setTimeout(() => {
+    isTypingRef.current = false;
+    sendTyping(false);
+  }, 2000);
+};
+</script></div>
+    <div class="analogy"><b>"Debounce" như cảm biến đèn hành lang:</b> đèn chỉ tắt sau khi <i>im lặng đủ lâu</i>.
+    Mỗi lần có chuyển động (gõ phím) lại reset đồng hồ. Nhờ vậy không phải gõ mỗi chữ là bắn một tín hiệu lên server.</div>
+    <p>Một điểm tinh tế: <code class="inl">PresenceTracker</code> đếm theo <b>connectionId</b>, nên một người mở
+    <b>nhiều tab</b> vẫn chỉ tính online một lần, và chỉ "offline" khi đóng hết tab.</p>
+
+    <div class="idea">
+      <h4>💡 Mở rộng ý tưởng</h4>
+      <ul>
+        <li><span class="stars"><span class="star-on">★</span><span class="star-off">★★</span></span>
+          <span><b>Dịch tự động</b> mọi tin sang ngôn ngữ mẹ đẻ trong hồ sơ (đã có sẵn trường <code class="inl">native_language</code>).</span></li>
+        <li><span class="stars"><span class="star-on">★★</span><span class="star-off">★</span></span>
+          <span><b>"Tóm tắt phòng chat":</b> nút gọi AI tóm tắt 50 tin gần nhất khi bạn vừa vào phòng (CopilotPanel đã có khung sẵn).</span></li>
+        <li><span class="stars"><span class="star-on">★★★</span></span>
+          <span><b>Gợi ý trả lời thông minh:</b> AI đề xuất 3 câu trả lời nhanh dựa trên tin nhắn cuối.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== 8. CHẠY ===================== -->
+  <section id="chay">
+    <span class="eyebrow">Chương 8</span>
+    <h2>Chạy thử &amp; cách đi tiếp</h2>
+    <p>Cách học code nhanh nhất là <b>chạy được nó</b>, rồi sửa một dòng nhỏ và xem điều gì thay đổi.</p>
+
+    <h3>Chạy backend (.NET 8)</h3>
+    <div class="code" data-lang="bash"><div class="bar"><span class="file">Terminal — trong thư mục backend/NexivraChatBackend</span><button class="copy">Sao chép</button></div><script type="text/plain">
+# Cần: .NET 8 SDK + PostgreSQL đang chạy (xem chuỗi kết nối trong appsettings.json)
+dotnet restore     # tải thư viện
+dotnet run         # chạy server -> mặc định http://localhost:5182
+# Lần đầu chạy, DbInitializer tự tạo 5 bảng + index. Không cần tạo tay.
+</script></div>
+
+    <h3>Chạy frontend (React + Vite)</h3>
+    <div class="code" data-lang="bash"><div class="bar"><span class="file">Terminal — trong thư mục frontend/nexivra-chat-frontend</span><button class="copy">Sao chép</button></div><script type="text/plain">
+npm install        # tải thư viện (chỉ cần lần đầu)
+npm run dev        # chạy giao diện -> http://localhost:5173
+# Mở 2 trình duyệt, đăng ký 2 tài khoản, vào cùng phòng để thấy realtime!
+# Gõ "@copilot xin chào" để thử AI (chạy được cả khi chưa có Gemini key — chế độ giả lập).
+</script></div>
+
+    <div class="note"><b>Không có Gemini API key?</b> Vẫn chạy tốt. <code class="inl">AiService</code> tự chuyển sang
+    "DEMO MODE" trả lời mẫu. Khi nào muốn AI thật, đặt key vào <code class="inl">appsettings.Development.json</code>
+    (file này được gitignore nên không lộ).</div>
+
+    <h3>Lộ trình đọc code mình gợi ý</h3>
+    <ol>
+      <li>Mở <code class="inl">context.md</code> ở thư mục gốc — đó là "bản đồ chính chủ" của dự án.</li>
+      <li>Đọc <code class="inl">ChatView.tsx</code> và <code class="inl">ChatHub.cs</code> <b>song song</b> — chúng là cặp đôi gửi/nhận.</li>
+      <li>Mỗi lần tò mò "tính năng X làm thế nào?", tìm theo <b>tên sự kiện</b> (ví dụ <code class="inl">ReceiveAiToken</code>) ở cả 2 bên frontend/backend.</li>
+      <li>Sửa thử một dòng nhỏ (ví dụ đổi câu chào DEMO MODE trong <code class="inl">AiService.cs</code>) rồi chạy lại xem kết quả.</li>
+    </ol>
+
+    <div class="card" style="border-color:var(--primary);">
+      <h3 style="color:var(--primary);">🧭 Bốn khuôn mẫu để mang theo</h3>
+      <ul>
+        <li><b>Realtime = cặp gửi/nhận:</b> backend <code class="inl">SendAsync("Tên")</code> ↔ frontend <code class="inl">conn.on("Tên")</code>.</li>
+        <li><b>REST = hỏi/đáp một lần:</b> dùng cho việc không cần tức thời (đăng nhập, tải lịch sử, dịch).</li>
+        <li><b>State đổi → React tự vẽ:</b> bạn lo dữ liệu, React lo giao diện.</li>
+        <li><b>Repository = mọi câu SQL gom một chỗ:</b> tham số hoá, liệt kê cột, async tới cùng.</li>
+      </ul>
+    </div>
+
+    <p class="end">Bạn vừa đi hết một vòng kiến trúc một app chat AI thật. Giờ thì mở source ra và nghịch thôi — chúc vui! 🚀</p>
+  </main>
+  </div>
+</div>
+
+<script>
+/* ===== Theme toggle (mirror dự án) ===== */
+const root = document.documentElement;
+const tbtn = document.getElementById('themeBtn');
+function applyTheme(t){ root.setAttribute('data-theme', t);
+  tbtn.textContent = t === 'dark' ? '☀️ Chế độ sáng' : '🌙 Chế độ tối';
+  try{ localStorage.setItem('huongdan-theme', t);}catch(e){} }
+applyTheme((()=>{try{return localStorage.getItem('huongdan-theme')||'light';}catch(e){return 'light';}})());
+tbtn.addEventListener('click',()=>applyTheme(root.getAttribute('data-theme')==='dark'?'light':'dark'));
+
+/* ===== Reading progress ===== */
+const prog = document.getElementById('progress');
+window.addEventListener('scroll',()=>{
+  const h = document.documentElement.scrollHeight - window.innerHeight;
+  prog.style.width = (h>0 ? (window.scrollY/h*100) : 0) + '%';
+});
+
+/* ===== Scroll-spy: tô sáng mục đang đọc ===== */
+const links = [...document.querySelectorAll('nav.toc a')];
+const map = {};
+links.forEach(a=>{ const id=a.getAttribute('href').slice(1); const s=document.getElementById(id); if(s) map[id]=a; });
+const spy = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){
+    links.forEach(l=>l.classList.remove('active'));
+    const a = map[e.target.id]; if(a) a.classList.add('active');
+  }});
+},{rootMargin:'-45% 0px -50% 0px'});
+Object.keys(map).forEach(id=>spy.observe(document.getElementById(id)));
+
+/* ===== Syntax highlight (nhẹ, tự viết — đủ cho C#/TS/SQL/bash) ===== */
+const KW = new RegExp('\\b(' + [
+  'async','await','public','private','static','class','interface','namespace','using','var','let','const',
+  'function','return','new','if','else','for','foreach','while','try','catch','finally','throw','void','null',
+  'true','false','int','string','bool','this','import','export','from','default','extends','type',
+  'SELECT','FROM','WHERE','INSERT','INTO','VALUES','ORDER','BY','LIMIT','OFFSET','RETURNING','DESC','AND',
+  'yield','Task','npm','dotnet','run','restore','install'
+].join('|') + ')\\b','g');
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hlPlain(s){ // s đã escape
+  return s.replace(KW,'<span class="c-kw">$1</span>')
+          .replace(/\b(\d+)\b/g,'<span class="c-num">$1</span>');
+}
+function highlight(code){
+  // tách comment & chuỗi trước, phần còn lại mới tô từ khoá
+  const re = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g;
+  let out='', last=0, m;
+  while((m=re.exec(code))){
+    out += hlPlain(esc(code.slice(last,m.index)));
+    if(m[1]) out += '<span class="c-com">'+esc(m[1])+'</span>';
+    else out += '<span class="c-str">'+esc(m[2])+'</span>';
+    last = re.lastIndex;
+  }
+  out += hlPlain(esc(code.slice(last)));
+  return out;
+}
+document.querySelectorAll('.code').forEach(box=>{
+  const src = box.querySelector('script[type="text/plain"]');
+  if(!src) return;
+  const raw = src.textContent.replace(/^\n/,'').replace(/\s+$/,'');
+  const pre = document.createElement('pre');
+  const code = document.createElement('code');
+  code.innerHTML = highlight(raw);
+  pre.appendChild(code);
+  src.remove();
+  box.appendChild(pre);
+  // nút sao chép
+  const btn = box.querySelector('.copy');
+  if(btn) btn.addEventListener('click',()=>{
+    navigator.clipboard.writeText(raw).then(()=>{ const t=btn.textContent; btn.textContent='✓ Đã chép'; setTimeout(()=>btn.textContent=t,1200);});
+  });
+});
+
+/* ===== Demo streaming tương tác ===== */
+(function(){
+  const btn=document.getElementById('demoBtn');
+  const bubble=document.getElementById('demoBubble');
+  const meta=document.getElementById('demoMeta');
+  if(!btn) return;
+  const text='Chào bạn! Mình là AI Copilot. Bạn vừa thấy đấy — mỗi chữ này được "stream" về từng mẩu một qua SignalR, nối dần vào bong bóng có id tạm thời là số âm.';
+  btn.addEventListener('click',()=>{
+    btn.disabled=true;
+    bubble.textContent='';
+    const tempId = -1 - Math.floor(Math.random()*9);
+    meta.textContent='id: '+tempId+' (tạm, số âm) · trạng thái: đang stream…';
+    const words=text.split(' '); let i=0;
+    const timer=setInterval(()=>{
+      if(i>=words.length){
+        clearInterval(timer);
+        const realId=40+Math.floor(Math.random()*9);
+        meta.textContent='id: '+realId+' (THẬT từ DB) · trạng thái: ✓ hoàn tất — đã đổi '+tempId+' → '+realId;
+        btn.disabled=false; btn.textContent='▶ Thử lại';
+        return;
+      }
+      bubble.textContent += (i?' ':'') + words[i++];
+    },90);
+  });
+})();
+</script>
+</body>
+</html>
