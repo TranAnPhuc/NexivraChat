@@ -782,7 +782,54 @@ const handleTranslateMessage = useCallback(async (msgId: number, text: string) =
     <div class="note"><b>Vì sao kiểu JSONB?</b> Vì kết quả AI có cấu trúc linh hoạt (nhiều chỉ số khác nhau). PostgreSQL
     cho phép lưu nguyên cục JSON mà vẫn truy vấn được — tiện hơn là tạo chục cột cứng nhắc.</div>
 
-    <h3>③ Presence (ai online) &amp; "đang gõ…"</h3>
+    <h3>③ Quản lý trang cá nhân — avatar, sở thích, mạng xã hội</h3>
+    <p>Người dùng tự trang trí hồ sơ: tải <b>ảnh đại diện</b>, thêm <b>sở thích</b> và <b>liên kết mạng xã hội</b>.
+    Tính năng này gói gọn 3 khuôn mẫu đáng học: <b>upload file</b>, <b>lưu danh sách bằng JSONB</b>, và <b>kiểm tra dữ liệu đầu vào</b>.</p>
+
+    <p><b>Tải ảnh đại diện —</b> ảnh đi qua một endpoint REST riêng (<code class="inl">POST /api/profile/avatar</code>)
+    dưới dạng <code class="inl">multipart/form-data</code>. Backend không tin tưởng file người dùng: nó <b>giải mã ảnh</b>
+    bằng thư viện ImageSharp (giải mã được nghĩa là ảnh thật), rồi <b>cắt vuông + thu nhỏ về 256×256</b> và lưu dạng
+    <code class="inl">.webp</code> cho nhẹ.</p>
+    <div class="code" data-lang="csharp"><div class="bar"><span class="file">Controllers/ProfileController.cs — UploadAvatar() (rút gọn)</span><button class="copy">Sao chép</button></div><script type="text/plain">
+if (file == null || file.Length == 0) return BadRequest("Chưa chọn ảnh.");
+if (file.Length > MaxAvatarBytes)      return BadRequest("Ảnh tối đa 2 MB.");
+
+var fileName = $"{userId}_{Guid.NewGuid():N}.webp";   // tên do SERVER sinh -> chống path traversal
+try {
+    using var image = await Image.LoadAsync(file.OpenReadStream());  // giải mã = xác thực ảnh thật
+    image.Mutate(x => x.Resize(new ResizeOptions {
+        Size = new Size(256, 256), Mode = ResizeMode.Crop            // cắt vuông, lấp đầy
+    }));
+    await image.SaveAsync(fullPath, new WebpEncoder());
+} catch (UnknownImageFormatException) {
+    return BadRequest("File không phải ảnh hợp lệ.");  // .exe/.svg đổi đuôi sẽ rơi vào đây
+}
+</script></div>
+    <div class="analogy"><b>Như nhân viên soát vé ở rạp phim:</b> không nhìn cái tên file (dễ giả), mà <i>mở ảnh ra xem thật</i>.
+    Mở được mới cho vào; mở không được (file giả) thì mời ra. Tên file cũng do rạp tự đánh số, không lấy tên khách đưa — tránh trò "tên file ma mãnh".</div>
+
+    <p><b>Sở thích &amp; liên kết —</b> đây là <i>danh sách dài ngắn tuỳ ý</i>, nên không tạo cột cứng mà lưu cả mảng
+    vào một cột <code class="inl">JSONB</code> (giống cách <code class="inl">ai_analysis_json</code> đã làm). Khi lưu, server
+    <b>làm sạch</b>: bỏ tag trùng/rỗng, và <b>chỉ chấp nhận link bắt đầu bằng http/https</b> — chặn mánh chèn
+    <code class="inl">javascript:</code> độc hại (lỗ hổng XSS).</p>
+    <div class="code" data-lang="csharp"><div class="bar"><span class="file">ProfileController.cs — làm sạch link & tag</span><button class="copy">Sao chép</button></div><script type="text/plain">
+// Chỉ nhận http/https — chặn javascript:, data:... (chống XSS khi render thẻ <a href>)
+private static bool IsValidHttpUrl(string? url) =>
+    Uri.TryCreate(url, UriKind.Absolute, out var u) &&
+    (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps);
+
+// Sở thích: cắt khoảng trắng, viết thường, bỏ trùng, giới hạn số lượng
+var cleanInterests = rawInterests
+    .Where(t => !string.IsNullOrWhiteSpace(t))
+    .Select(t => t.Trim().ToLowerInvariant())
+    .Distinct().Take(15).ToList();
+</script></div>
+    <div class="note"><b>Phục vụ ảnh ra sao?</b> Ảnh nằm trong thư mục <code class="inl">wwwroot/avatars/</code>; một dòng
+    <code class="inl">app.UseStaticFiles()</code> trong <code class="inl">Program.cs</code> biến thư mục đó thành "kho ảnh công khai"
+    truy cập qua URL. Frontend chỉ cần ghép <code class="inl">http://localhost:5182</code> + đường dẫn ảnh là hiện được.
+    Mỗi lần đổi ảnh dùng tên file mới (có <code class="inl">guid</code>) nên trình duyệt không bị kẹt ảnh cũ trong cache.</div>
+
+    <h3>④ Presence (ai online) &amp; "đang gõ…"</h3>
     <p>Cả hai đều là <b>thông tin tạm thời</b>, không cần lưu DB — nên giữ trong bộ nhớ qua
     <code class="inl">PresenceTracker</code>. Khi ai vào/ra phòng, Hub phát <code class="inl">PresenceUpdate</code>
     cho cả phòng. Khi gõ, frontend gửi tín hiệu nhưng <b>"debounce"</b> để khỏi spam:</p>

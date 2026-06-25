@@ -31,11 +31,11 @@ NexivraChat/
 │       │   ├── AuthController.cs          # Đăng ký & Đăng nhập (async), băm mật khẩu PasswordHasher, cấp JWT.
 │       │   ├── RoomsController.cs         # Lấy danh sách phòng, lịch sử tin nhắn của phòng (phân trang) — async.
 │       │   ├── UsersController.cs         # Danh sách user, tạo/lấy hội thoại 1-1, lịch sử tin nhắn riêng tư — async.
-│       │   ├── ProfileController.cs       # API xem/cập nhật Profile & phân tích tính cách AI — async.
+│       │   ├── ProfileController.cs       # API xem/cập nhật Profile (bio, ngôn ngữ, social links, interests), upload/xoá avatar & phân tích tính cách AI — async. Có ILogger, validate đầu vào, helper BuildResponse (DRY).
 │       │   └── TranslationController.cs   # Endpoint POST /api/translation dịch tin nhắn qua TranslationService.
 │       ├── Data/
 │       │   ├── DapperContext.cs           # Khởi tạo kết nối NpgsqlConnection, cấu hình Map tên thuộc tính dạng snake_case.
-│       │   └── DbInitializer.cs           # Tự tạo bảng (users, chat_rooms, private_chats, messages, user_profiles), tạo INDEX cho messages, seed phòng mặc định. (Đồng bộ — chạy 1 lần lúc khởi động.)
+│       │   └── DbInitializer.cs           # Tự tạo bảng (users, chat_rooms, private_chats, messages, user_profiles), `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` cho avatar_url/social_links/interests (idempotent), tạo INDEX cho messages, seed phòng mặc định. (Đồng bộ — chạy 1 lần lúc khởi động.)
 │       ├── Hubs/
 │       │   └── ChatHub.cs                 # Trọng tâm điều phối SignalR: gửi tin nhắn (nhóm & 1-1), điều phối stream AI, presence & typing. Mọi truy cập DB đã async.
 │       ├── Models/
@@ -43,13 +43,13 @@ NexivraChat/
 │       │   ├── ChatRoom.cs                # Bản ghi ChatRoom (id, name, description).
 │       │   ├── Message.cs                 # Bản ghi Message (id, room_id, private_chat_id, sender_name, content, created_at, is_ai).
 │       │   ├── PrivateChat.cs             # Bản ghi PrivateChat (id, user1_id, user2_id, created_at).
-│       │   └── UserProfile.cs             # Bản ghi UserProfile (user_id, bio, native_language, ai_analysis_json, last_analyzed_at).
+│       │   └── UserProfile.cs             # Bản ghi UserProfile (user_id, bio, native_language, ai_analysis_json, last_analyzed_at, avatar_url, social_links_json, interests_json). 3 trường mới lưu JSONB-dưới-dạng-string giống pattern ai_analysis_json.
 │       ├── Repositories/                  # Tất cả repository dùng Dapper ASYNC (QueryAsync/ExecuteScalarAsync/...), cột tường minh (không SELECT *).
-│       │   ├── UserRepository.cs          # Truy vấn dữ liệu User.
+│       │   ├── UserRepository.cs          # Truy vấn dữ liệu User. Có `GetById` (thay cho lối GetAll().FirstOrDefault cũ — hết N+1).
 │       │   ├── RoomRepository.cs          # Truy vấn dữ liệu Room.
 │       │   ├── MessageRepository.cs       # Lưu tin nhắn mới & lấy lịch sử (theo phòng / chat 1-1 / người gửi).
 │       │   ├── PrivateChatRepository.cs   # Lấy hoặc tạo hội thoại 1-1 (đảm bảo u1<u2 cho UNIQUE).
-│       │   └── ProfileRepository.cs       # CRUD Profile & dữ liệu AI phân tích (upsert ::jsonb).
+│       │   └── ProfileRepository.cs       # CRUD Profile & dữ liệu AI phân tích (upsert ::jsonb). Đọc/ghi đủ avatar_url, social_links, interests; alias `social_links AS social_links_json` để Dapper map đúng property.
 │       ├── Services/
 │       │   ├── TokenService.cs            # Tạo mã JWT Token thời hạn 7 ngày.
 │       │   ├── AiService.cs               # Gọi Gemini REST (stream IAsyncEnumerable<string>) — HttpClient inject qua IHttpClientFactory.
@@ -58,8 +58,10 @@ NexivraChat/
 │       │   └── TempMessageId.cs           # Sinh temp-ID âm DUY NHẤT cho tin nhắn AI đang stream (Interlocked.Decrement).
 │       ├── Properties/
 │       │   └── launchSettings.json        # Cấu hình cổng chạy backend (HTTP: 5182, HTTPS: 7103).
-│       ├── Program.cs                     # Cấu hình ứng dụng: CORS, JWT Auth, SignalR, DI Container, AddHttpClient<AiService/TranslationService>.
-│       └── appsettings.json               # Chuỗi kết nối DB PostgreSQL và khóa bí mật JWT.
+│       ├── Program.cs                     # Cấu hình ứng dụng: CORS, JWT Auth, SignalR, DI Container, AddHttpClient<AiService/TranslationService>. Tạo `wwwroot/avatars` lúc startup + `UseStaticFiles()` để phục vụ ảnh avatar.
+│       ├── appsettings.json               # Chuỗi kết nối DB PostgreSQL và khóa bí mật JWT.
+│       ├── NexivraChatBackend.csproj       # Có thêm `SixLabors.ImageSharp` để decode/resize avatar.
+│       └── wwwroot/avatars/                # Nơi lưu avatar đã resize 256×256 webp (tạo tự động lúc startup; phục vụ qua UseStaticFiles).
 │   └── NexivraChatBackend.Tests/
 │       ├── PresenceTrackerTests.cs        # Unit test xUnit cho PresenceTracker (6 test cases).
 │       └── TempMessageIdTests.cs          # Unit test xUnit cho TempMessageId (2 test: âm & duy nhất khi gọi đồng thời). Tổng cộng 8 test.
@@ -78,11 +80,11 @@ NexivraChat/
 │       │   ├── views/
 │       │   │   ├── LoginView.tsx          # Màn hình đăng nhập/đăng ký thiết kế PipelinePro (teal primary, Inter/Outfit font), nội dung Việt.
 │       │   │   ├── ChatView.tsx           # Giao diện chính kết nối SignalR Client, hiển thị tin nhắn (nhóm & 1-1), stream AI, dịch tin, online count, typing indicator, hỗ trợ light/dark.
-│       │   │   └── ProfileView.tsx        # Màn hình xem profile cá nhân và phân tích tính cách AI (radar/thẻ chỉ số).
+│       │   │   └── ProfileView.tsx        # Modal hồ sơ: avatar (img + upload hover-camera + fallback initials), bio, ngôn ngữ, tag sở thích, social links, và phân tích tính cách AI (radar/thẻ chỉ số). Thứ tự IA: Danh tính → Sở thích → Social → AI. Responsive + a11y (alt/aria, contrast).
 │       │   ├── services/
 │       │   │   └── api.ts                 # Cấu hình Axios, tự động đính kèm JWT Token vào Header của các yêu cầu API.
 │       │   ├── App.tsx                    # Quản lý trạng thái đăng nhập, ThemeProvider + antd ConfigProvider (colorPrimary teal + light/dark algorithm).
-│       │   ├── index.css                  # CSS variables (token) cho design system PipelinePro, color, typography, `:root[data-theme="light"|"dark"]`.
+│       │   ├── index.css                  # CSS variables (token) cho design system PipelinePro, color, typography, `:root[data-theme="light"|"dark"]`. `--text-muted` đã chỉnh đạt contrast WCAG AA (≥4.5:1) cả 2 theme.
 │       │   └── main.tsx                   # Điểm khởi đầu React, set `data-theme` attribute trước render, nạp Google Fonts (Inter/Outfit).
 │       ├── index.html                     # Nạp Google Fonts (Inter/Outfit), meta viewport, root div.
 │       ├── package.json                   # Các gói phụ thuộc (antd, @microsoft/signalr, axios, vite).
@@ -141,8 +143,13 @@ CREATE TABLE user_profiles (
     bio VARCHAR(255),
     native_language VARCHAR(50) DEFAULT 'Vietnamese' NOT NULL,
     ai_analysis_json JSONB, -- Lưu kết quả đánh giá tính cách dạng JSON bằng AI
-    last_analyzed_at TIMESTAMP
+    last_analyzed_at TIMESTAMP,
+    avatar_url TEXT,        -- Đường dẫn tương đối tới avatar đã upload, vd /avatars/3_a1b2.webp
+    social_links JSONB,     -- Mảng [{ "label": "...", "url": "..." }]
+    interests JSONB         -- Mảng ["âm nhạc", "bóng đá", ...]
 );
+-- 3 cột avatar_url/social_links/interests được DbInitializer thêm idempotent qua
+-- ALTER TABLE ... ADD COLUMN IF NOT EXISTS (an toàn cho DB đã tồn tại từ trước).
 
 -- 6. Index tối ưu truy vấn lịch sử tin nhắn (DbInitializer tạo, CREATE INDEX IF NOT EXISTS)
 CREATE INDEX idx_messages_room_created    ON messages (room_id, created_at);
@@ -216,6 +223,16 @@ Luồng xử lý tự động phân tích tính cách và hành vi người dùn
 - **Phân tích hành vi**: Gửi prompt được thiết kế sẵn (bao gồm lịch sử chat) đến Gemini API để đánh giá tính cách, sở thích, và xu hướng giao tiếp.
 - **Lưu trữ dữ liệu**: Nhận kết quả phân tích dưới dạng cấu trúc JSON từ Gemini và lưu vào trường `ai_analysis_json` (kiểu dữ liệu `JSONB`) trong bảng `user_profiles` cùng với thời gian phân tích `last_analyzed_at`.
 - **Hiển thị (Frontend)**: Màn hình `ProfileView.tsx` gọi API lấy thông tin Profile và render giao diện trực quan hóa các chỉ số thông minh, tính cách dưới dạng biểu đồ/thẻ chỉ số thông minh hiện đại (PipelinePro UI).
+
+### 3. Tính năng Quản lý trang cá nhân (Avatar + Social links + Interests)
+Mở rộng `user_profiles` với 3 trường mới, để người dùng tự trang trí hồ sơ:
+- **Avatar (ảnh thật)**: `POST /api/profile/avatar` nhận `multipart/form-data` (`IFormFile`). Backend validate (file rỗng / >2MB), dùng **SixLabors.ImageSharp** decode → crop vuông → resize **256×256 .webp**, lưu `wwwroot/avatars/{userId}_{guid}.webp`, xoá file cũ. Việc decode cũng chính là cách chống file giả (SVG/.exe đổi đuôi sẽ ném `UnknownImageFormatException` → 400). `userId` lấy từ JWT (chống IDOR). Phục vụ ảnh qua `UseStaticFiles`. `DELETE /api/profile/avatar` để gỡ ảnh về initials.
+- **Social links**: mảng `{ label, url }` lưu cột `social_links` (JSONB). Validate scheme chỉ `http/https` (chống XSS khi render `<a href>`), tối đa 8 link.
+- **Interests (sở thích)**: mảng string tự do, server trim + lowercase + dedupe + bỏ rỗng, tối đa 15 tag × 30 ký tự. Lưu cột `interests` (JSONB).
+- **Đường đi**: `PUT /api/profile` nhận thêm `socialLinks[]` + `interests[]` (avatar đi riêng qua endpoint upload). Mọi GET/PUT trả về mảng đã parse (helper `BuildResponse` — DRY). Frontend `ProfileView.tsx` hiển thị theo thứ tự **Danh tính → Sở thích → Social → AI**; avatar có hover-overlay camera (desktop) + nút Tải/Gỡ trong edit-mode (mobile), `<img onError>` fallback về initials.
+- **Dọn dẹp kỹ thuật kèm theo**: `UserRepository.GetById` (hết N+1 ở `GetUserProfile`), `DateTime.UtcNow` thay `DateTime.Now`, gộp 3 khối JSON mock trùng trong `/analyze` thành 1 hằng (DRY), thêm `ILogger<ProfileController>`.
+
+> **Lưu ý vận hành:** avatar lưu trên filesystem (`wwwroot/avatars`) — local thì ổn, nhưng **không bền qua redeploy container** nếu sau này deploy (cần volume hoặc chuyển object storage/CDN).
 
 ---
 
