@@ -158,6 +158,36 @@
 
   .end{text-align:center; padding:40px 0 0; color:var(--text-muted); font-size:14px;}
 
+  /* ===== Chương 9 — học nền tảng (workbook) ===== */
+  .goldrule{border:2px solid var(--accent); background:var(--bg-elevated); border-radius:12px; padding:14px 18px; margin:18px 0; font-weight:500;}
+  .goldrule b{color:var(--accent);}
+  .method{border:1px solid var(--secondary); background:var(--bg-surface); border-radius:12px; padding:16px 20px; margin:18px 0;}
+  .method h4{margin:0 0 6px;} .method ol{margin:8px 0 0; padding-left:20px;}
+  .roadmap{font-size:14px; color:var(--text-secondary);}
+  .concept{border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin:22px 0; background:var(--bg-surface);}
+  .concept>h4{margin:0 0 2px; display:flex; align-items:center; gap:10px; font-size:17px;}
+  .concept .badge{flex:0 0 auto; width:30px; height:30px; border-radius:8px; background:var(--primary); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-family:'Outfit'; font-weight:700; font-size:13px;}
+  .concept .core{font-size:14.5px; color:var(--text-secondary); margin:4px 0 10px;}
+  .concept .where{font-size:12.5px; font-family:'JetBrains Mono',monospace; color:var(--primary);
+    background:var(--bg-elevated); padding:6px 10px; border-radius:8px; display:inline-block; margin:0 0 8px;}
+  .lab{border-left:4px solid var(--accent); background:var(--bg-elevated); border-radius:0 10px 10px 0; padding:12px 16px; margin:12px 0;}
+  .lab .lh{font-weight:700; color:var(--accent); font-family:'Outfit'; margin-bottom:4px; display:flex; align-items:center; gap:6px;}
+  .lab ol{margin:6px 0 0; padding-left:20px; font-size:14px;}
+  .blank{border-left:4px solid var(--primary); background:var(--primary-soft); border-radius:0 10px 10px 0; padding:10px 16px; margin:12px 0; font-size:14px;}
+  :root[data-theme="dark"] .blank{background:rgba(20,184,166,.08);}
+  .blank b{color:var(--primary-hover);} :root[data-theme="dark"] .blank b{color:var(--primary);}
+  details.box{border:1px solid var(--border); border-radius:10px; padding:8px 14px; margin:10px 0; background:var(--bg-surface);}
+  details.box>summary{cursor:pointer; font-weight:600; color:var(--text-primary); font-size:14px;}
+  details.box>summary::marker{color:var(--primary);}
+  details.box[open]>summary{margin-bottom:8px;}
+  details.box .ans{font-size:14px; color:var(--text-secondary);}
+  .recall{display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:var(--text-secondary); font-weight:600;}
+  .recall input{width:17px; height:17px; accent-color:var(--primary); cursor:pointer;}
+  .tracker{background:var(--bg-surface); border:1px solid var(--primary); border-radius:12px; padding:12px 16px; margin:16px 0;}
+  .tracker .barwrap{height:8px; background:var(--bg-elevated); border-radius:99px; overflow:hidden; margin-top:8px;}
+  .tracker .barfill{height:100%; width:0; background:linear-gradient(90deg,var(--primary),var(--secondary)); transition:width .3s;}
+
   @media(max-width:900px){
     nav.toc{display:none;} main,header.hero{padding-left:22px; padding-right:22px;}
     header.hero h1{font-size:34px;}
@@ -182,6 +212,7 @@
     <a href="#backend"><span class="num">6.</span>Đào sâu Backend</a>
     <a href="#phu"><span class="num">7.</span>Các tính năng phụ</a>
     <a href="#chay"><span class="num">8.</span>Chạy thử & đi tiếp</a>
+    <a href="#nentang"><span class="num">9.</span>Nền tảng: tự đọc, tự nhớ</a>
   </nav>
 
   <div style="flex:1; min-width:0;">
@@ -909,8 +940,312 @@ npm run dev        # chạy giao diện -> http://localhost:5173
         <li><b>Repository = mọi câu SQL gom một chỗ:</b> tham số hoá, liệt kê cột, async tới cùng.</li>
       </ul>
     </div>
+  </section>
 
-    <p class="end">Bạn vừa đi hết một vòng kiến trúc một app chat AI thật. Giờ thì mở source ra và nghịch thôi — chúc vui! 🚀</p>
+  <!-- ===================== 9. NỀN TẢNG ===================== -->
+  <section id="nentang">
+    <span class="eyebrow">Chương 9 · luyện tập</span>
+    <h2>🧱 Nền tảng: tự đọc, tự nhớ, không phụ thuộc AI</h2>
+    <p>
+      Tám chương trước <b>giải thích</b> cho bạn. Chương này thì <b>khác hẳn</b>: nó bắt bạn <b>tự làm</b>.
+      Vì sự thật phũ phàng là — đọc hiểu một lần rồi gật gù <i>không</i> tạo ra năng lực. Năng lực đến từ
+      việc <b>tự nhớ lại</b> (recall) và <b>tự gõ lại</b>. Nỗi sợ "AI hết token là mình ngu" không chữa được
+      bằng tài liệu hay hơn — chỉ chữa được bằng <b>thói quen luyện tập</b>. Đây là chỗ để bạn xây thói quen đó.
+    </p>
+
+    <div class="goldrule">
+      ⚖️ <b>Quy tắc vàng của chương này:</b> Mỗi 🔬 Lab và 🧠 Tự kiểm tra, hãy <b>tự làm KHÔNG hỏi AI trước</b>.
+      Đoán trước, làm trước, sai cũng được — <i>rồi</i> mới mở đáp án so. Cái khoảnh khắc bạn vật lộn chính là
+      lúc nền tảng được xây. Hỏi AI ngay từ đầu = cướp mất phần học của bạn.
+    </div>
+
+    <div class="tracker">
+      <b id="recallLabel">Bạn đã tự recall 0 khái niệm.</b>
+      <div class="barwrap"><div class="barfill" id="recallFill"></div></div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">
+        Tích ô "đã tự recall được" ở cuối mỗi thẻ khi bạn nhớ lại được mà không nhìn. Tiến độ tự lưu trong trình duyệt (offline).
+      </div>
+    </div>
+
+    <div class="method">
+      <h4>🔎 Soi một file LẠ trong 60 giây</h4>
+      <p style="margin:0; font-size:14px;">Kim chỉ nam dùng cho <b>mọi</b> file — kể cả ở dự án khác sau này. Đừng đọc từng dòng vội. Hỏi theo thứ tự:</p>
+      <ol class="roadmap">
+        <li><b>File này là loại gì?</b> Controller / Repository / Service / Hub / Component? Tên file và thư mục đã nói 80%.</li>
+        <li><b>Nó nhận gì, trả gì?</b> Nhìn tên hàm public + tham số + kiểu trả về. Bỏ qua phần ruột bên trong.</li>
+        <li><b>Ai gọi nó?</b> Tìm tên class/hàm đó ở nơi khác (Ctrl+Shift+F). Biết "ai gọi" là biết vai trò.</li>
+        <li><b>Dữ liệu đi đâu?</b> Lần theo: vào hàm → biến đổi gì → có chạm DB (Repository) hay mạng (HttpClient) không → trả ra đâu.</li>
+        <li><b>Bỏ qua cái chưa cần.</b> Gặp cú pháp lạ thì khoanh lại, đọc tiếp mạch chính. Hiểu 70% mạch chính &gt; kẹt 100% một dòng.</li>
+        <li><b>Tóm một câu.</b> "File này phục vụ việc ___." Nói được câu đó = bạn đã đọc xong file.</li>
+      </ol>
+    </div>
+
+    <div class="note"><b>Lộ trình gợi ý (2 tuần, nhẹ nhàng):</b> mỗi ngày <b>1 thẻ</b> khái niệm — đọc, làm Lab, làm trang trắng, tích recall.
+    Cuối tuần 2 làm <b>Capstone</b>. Đừng nuốt 10 thẻ một lúc; não cần thời gian "ngấm". Quá tải = bỏ cuộc.</div>
+
+    <h3>Phần A — 6 khái niệm Backend (.NET / C#)</h3>
+
+    <!-- B1 -->
+    <div class="concept">
+      <h4><span class="badge">B1</span> async / await + Task</h4>
+      <div class="core">Cốt lõi: <b>"đặt món rồi làm việc khác, món xong thì quay lại"</b> — không đứng chặn cả bếp để chờ.</div>
+      <div class="where">Gặp ở: hầu hết hàm trong Repositories, vd <b>ProfileRepository.GetByUserId</b> (<code class="inl">async Task</code> + <code class="inl">await</code>)</div>
+      <p style="font-size:14px;">Một hàm <code class="inl">async</code> trả về <code class="inl">Task</code> = "lời hứa sẽ có kết quả sau". <code class="inl">await</code> = "đợi lời hứa đó xong rồi lấy ruột ra, nhưng trong lúc đợi <b>nhường CPU cho người khác</b>".</p>
+      <div class="analogy"><b>Như gọi món ở quán đông:</b> đưa phiếu cho bếp (<code class="inl">await</code>), bạn không đứng chôn chân — phục vụ bàn khác; chuông kêu (Task xong) thì quay lại bưng món.</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán trước (đừng hỏi AI):</b> trong <code class="inl">ProfileRepository.cs</code>, nếu bạn xoá chữ <code class="inl">await</code> ở dòng <code class="inl">return await connection.QueryFirstOrDefaultAsync...</code> thì <code class="inl">dotnet build</code> sẽ ra sao?</li>
+          <li>Xoá <code class="inl">await</code> đó, chạy <code class="inl">dotnet build</code>.</li>
+          <li>Quan sát lỗi, rồi hoàn tác: <code class="inl">git restore backend/NexivraChatBackend/Repositories/ProfileRepository.cs</code></li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">Lỗi biên dịch: kiểu trả về thành <code class="inl">Task&lt;UserProfile?&gt;</code> (cái hộp "lời hứa") nhưng hàm khai báo trả <code class="inl">Task&lt;UserProfile?&gt;</code>... thực ra nó báo "không chuyển <code class="inl">Task&lt;UserProfile?&gt;</code> thành <code class="inl">UserProfile?</code>". Bài học: <code class="inl">await</code> chính là thứ "bóc hộp" lấy giá trị thật ra khỏi Task.</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> đóng trang này lại, tự viết chữ ký một hàm async trả về danh sách User. (Gợi ý mở khi bí ↓)
+        <details class="box"><summary>Xem đáp án</summary><div class="ans"><code class="inl">public async Task&lt;List&lt;User&gt;&gt; GetAll()</code></div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: <code class="inl">await</code> khác gì so với "đứng chờ bình thường"?</summary>
+        <div class="ans">Cả hai đều đợi kết quả, nhưng <code class="inl">await</code> <b>không chặn thread</b> — trong lúc đợi, server rảnh tay phục vụ request khác. Đó là vì sao backend async phục vụ được nhiều người cùng lúc.</div></details>
+      <label class="recall"><input type="checkbox" data-recall="b1"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <!-- B2 -->
+    <div class="concept">
+      <h4><span class="badge">B2</span> Dependency Injection (tiêm qua constructor)</h4>
+      <div class="core">Cốt lõi: <b>"không tự đi mua đồ nghề — khai báo cần gì ở constructor, .NET tự đưa tận tay"</b>.</div>
+      <div class="where">Gặp ở: constructor <b>ProfileController</b> (nhận repos + ILogger + IWebHostEnvironment) · đăng ký ở <b>Program.cs</b> (<code class="inl">AddScoped&lt;ProfileRepository&gt;()</code>)</div>
+      <div class="analogy"><b>Như đầu bếp vào ca:</b> không tự chạy đi mua dao thớt — quản lý đã chuẩn bị sẵn và phát tận tay. Bạn chỉ ghi "tôi cần dao, thớt" (tham số constructor).</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán:</b> nếu trong <code class="inl">Program.cs</code> bạn comment dòng <code class="inl">builder.Services.AddScoped&lt;ProfileRepository&gt;();</code> thì app khởi động sẽ thế nào?</li>
+          <li>Comment dòng đó, chạy <code class="inl">dotnet run</code>, thử gọi API profile.</li>
+          <li>Hoàn tác: <code class="inl">git restore backend/NexivraChatBackend/Program.cs</code></li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">App ném lỗi runtime kiểu <i>"Unable to resolve service for type ProfileRepository while attempting to activate ProfileController"</i> — .NET không biết lấy đâu ra <code class="inl">ProfileRepository</code> để "tiêm" vào controller, vì bạn chưa "đăng ký" nó.</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> tự viết một constructor controller nhận 1 repository và gán vào field.
+        <details class="box"><summary>Xem đáp án</summary><div class="ans"><code class="inl">private readonly UserRepository _repo; public MyController(UserRepository repo){ _repo = repo; }</code></div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: vì sao DI làm code <b>dễ test</b> hơn?</summary>
+        <div class="ans">Vì lúc test bạn có thể "tiêm" một repository <b>giả</b> (trả dữ liệu cố định) thay cho repo thật chạm DB — không cần DB thật vẫn test được logic controller.</div></details>
+      <label class="recall"><input type="checkbox" data-recall="b2"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <!-- B3 -->
+    <div class="concept">
+      <h4><span class="badge">B3</span> Generic <code class="inl">&lt;T&gt;</code></h4>
+      <div class="core">Cốt lõi: <b>"một khuôn dùng chung cho mọi kiểu — điền kiểu vào <code class="inl">&lt;...&gt;</code> để biết nó trả về cái gì"</b>.</div>
+      <div class="where">Gặp ở: <b>QueryFirstOrDefaultAsync&lt;UserProfile&gt;</b> trong ProfileRepository · <b>ILogger&lt;ProfileController&gt;</b></div>
+      <div class="analogy"><b>Như khuôn bánh:</b> cùng một khuôn, đổ bột nào ra bánh nấy. <code class="inl">QueryAsync&lt;Message&gt;</code> = "đổ kết quả vào khuôn Message"; đổi thành <code class="inl">&lt;User&gt;</code> là ra User.</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán:</b> trong <code class="inl">ProfileRepository.GetByUserId</code>, nếu đổi <code class="inl">&lt;UserProfile&gt;</code> thành <code class="inl">&lt;User&gt;</code> thì lúc mở hồ sơ sẽ ra sao?</li>
+          <li>Đổi, chạy lại backend + frontend, mở một hồ sơ.</li>
+          <li>Hoàn tác bằng <code class="inl">git restore</code>.</li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">Dapper cố nhồi các cột (bio, native_language...) vào khuôn <code class="inl">User</code> — nhưng User không có các property đó, nên chúng bị bỏ qua / về null. Hồ sơ hiện ra thiếu dữ liệu hoặc sai. Bài học: <code class="inl">&lt;T&gt;</code> quyết định "đổ kết quả vào hình dạng nào".</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> viết lời gọi Dapper lấy danh sách Message.
+        <details class="box"><summary>Xem đáp án</summary><div class="ans"><code class="inl">await connection.QueryAsync&lt;Message&gt;(query, ...)</code></div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: trong <code class="inl">ILogger&lt;ProfileController&gt;</code>, chữ trong <code class="inl">&lt;&gt;</code> để làm gì?</summary>
+        <div class="ans">Để mỗi dòng log tự kèm tên class <code class="inl">ProfileController</code> — sau này đọc log biết ngay log đến từ đâu.</div></details>
+      <label class="recall"><input type="checkbox" data-recall="b3"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <!-- B4 -->
+    <div class="concept">
+      <h4><span class="badge">B4</span> LINQ (Where / Select / Distinct / Take)</h4>
+      <div class="core">Cốt lõi: <b>"dây chuyền xử lý một danh sách"</b> — lọc, biến đổi, bỏ trùng, lấy N phần tử.</div>
+      <div class="where">Gặp ở: <b>ProfileController</b> làm sạch interests (<code class="inl">.Where(...).Select(...).Distinct().Take(15)</code>) · <code class="inl">latestMessages.Select(m =&gt; ...)</code></div>
+      <div class="analogy"><b>Như băng chuyền phân loại trái cây:</b> bỏ quả hỏng (<code class="inl">Where</code>) → dán nhãn (<code class="inl">Select</code>) → bỏ quả trùng (<code class="inl">Distinct</code>) → lấy 15 quả đầu (<code class="inl">Take</code>).</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán:</b> trong <code class="inl">ProfileController</code>, đổi <code class="inl">.Take(15)</code> ở phần interests thành <code class="inl">.Take(2)</code> thì khi lưu 5 sở thích sẽ ra sao?</li>
+          <li>Đổi, chạy lại, vào hồ sơ thêm 5 tag sở thích rồi Lưu, tải lại trang.</li>
+          <li>Hoàn tác bằng <code class="inl">git restore</code>.</li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">Chỉ 2 sở thích được lưu, 3 cái còn lại bị cắt — vì <code class="inl">Take(2)</code> lấy đúng 2 phần tử đầu của dây chuyền. Bài học: LINQ chạy lần lượt từ trái sang phải như các trạm trên băng chuyền.</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> viết LINQ lọc danh sách user có username dài hơn 3 ký tự.
+        <details class="box"><summary>Xem đáp án</summary><div class="ans"><code class="inl">users.Where(u =&gt; u.Username.Length &gt; 3)</code></div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: <code class="inl">Where</code> và <code class="inl">Select</code> khác nhau chỗ nào?</summary>
+        <div class="ans"><code class="inl">Where</code> <b>lọc bớt</b> phần tử (giữ số ít hơn). <code class="inl">Select</code> <b>biến đổi từng</b> phần tử (số lượng giữ nguyên, hình dạng đổi).</div></details>
+      <label class="recall"><input type="checkbox" data-recall="b4"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <!-- B5 -->
+    <div class="concept">
+      <h4><span class="badge">B5</span> Streaming: <code class="inl">IAsyncEnumerable</code> + <code class="inl">yield</code> + <code class="inl">await foreach</code></h4>
+      <div class="core">Cốt lõi: <b>"dòng dữ liệu chảy dần — có mẩu nào xử mẩu đó, không đợi gom hết"</b>. Chính là cách AI "gõ" từng chữ.</div>
+      <div class="where">Gặp ở: <b>AiService.StreamResponseAsync</b> (bên phát: <code class="inl">yield return</code>) ↔ <b>ChatHub</b> (bên nhận: <code class="inl">await foreach</code>)</div>
+      <div class="analogy"><b>Như băng chuyền sushi:</b> đĩa tới đâu gắp tới đó, không đợi đầu bếp làm xong cả bữa mới được ăn.</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán:</b> trong <code class="inl">ChatHub</code>, ngay trong vòng <code class="inl">await foreach (var token ...)</code> thêm <code class="inl">await Task.Delay(300);</code> thì AI trả lời sẽ ra sao?</li>
+          <li>Thêm dòng đó, chạy lại, gõ <code class="inl">@copilot xin chào</code>.</li>
+          <li>Hoàn tác bằng <code class="inl">git restore</code>.</li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">AI "gõ" chậm hẳn — mỗi mẩu chữ cách nhau ~0.3 giây, nhìn rõ từng token rơi xuống. Bài học: streaming là xử lý <b>từng mẩu khi nó tới</b>, không phải đợi cả câu.</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> nhớ đúng 2 từ khoá tạo "dòng chảy": một ở bên phát, một ở bên nhận.
+        <details class="box"><summary>Xem đáp án</summary><div class="ans">Bên phát: <code class="inl">yield return</code>. Bên nhận: <code class="inl">await foreach</code>.</div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: khác gì so với trả về cả một <code class="inl">List</code> một lần?</summary>
+        <div class="ans"><code class="inl">List</code> bắt đợi xử lý xong <b>hết</b> mới trả ra một cục. Stream trả <b>dần</b> — người dùng thấy kết quả ngay từ mẩu đầu tiên (cảm giác nhanh, "sống động").</div></details>
+      <label class="recall"><input type="checkbox" data-recall="b5"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <!-- B6 -->
+    <div class="concept">
+      <h4><span class="badge">B6</span> Dapper tham số hoá + JSONB <code class="inl">::jsonb</code></h4>
+      <div class="core">Cốt lõi: <b><code class="inl">@tên</code> = ô điền an toàn</b> (chống SQL injection); <b><code class="inl">::jsonb</code> = ép chuỗi thành kiểu JSON của Postgres</b>.</div>
+      <div class="where">Gặp ở: <b>ProfileRepository.Upsert</b> (<code class="inl">@SocialLinksJson::jsonb</code>, <code class="inl">@AiAnalysisJson::jsonb</code>)</div>
+      <div class="analogy"><b>Như tờ khai có ô sẵn:</b> người dùng chỉ được điền vào ô (<code class="inl">@param</code>), không thể vẽ đè lên cả tờ (câu SQL). Đó là lý do hacker không chèn được lệnh phá hoại.</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán:</b> trong <code class="inl">Upsert</code>, bỏ <code class="inl">::jsonb</code> sau <code class="inl">@SocialLinksJson</code> thì khi lưu social link sẽ ra sao?</li>
+          <li>Bỏ <code class="inl">::jsonb</code> đó, chạy lại, vào hồ sơ thêm 1 link rồi Lưu.</li>
+          <li>Hoàn tác bằng <code class="inl">git restore</code>.</li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">Postgres ném lỗi kiểu <i>"column "social_links" is of type jsonb but expression is of type text"</i> — cột là JSONB nhưng bạn đưa vào chuỗi text thường mà không ép kiểu. <code class="inl">::jsonb</code> chính là phép ép đó.</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> viết mệnh đề WHERE tham số hoá theo user id.
+        <details class="box"><summary>Xem đáp án</summary><div class="ans"><code class="inl">WHERE user_id = @userId</code> (và truyền <code class="inl">new { userId }</code>)</div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: vì sao TUYỆT ĐỐI không nối chuỗi dữ liệu người dùng thẳng vào câu SQL?</summary>
+        <div class="ans">Vì kẻ xấu có thể nhập dữ liệu chứa lệnh SQL (vd <code class="inl">'; DROP TABLE users; --</code>) và phá DB — gọi là <b>SQL injection</b>. Tham số hoá (<code class="inl">@param</code>) tách hẳn "lệnh" khỏi "dữ liệu" nên an toàn.</div></details>
+      <label class="recall"><input type="checkbox" data-recall="b6"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <h3>Phần B — 4 khái niệm Frontend (React / TypeScript)</h3>
+
+    <!-- F1 -->
+    <div class="concept">
+      <h4><span class="badge">F1</span> <code class="inl">useState</code></h4>
+      <div class="core">Cốt lõi: <b>"trí nhớ tạm của giao diện — đổi nó, React tự vẽ lại"</b>.</div>
+      <div class="where">Gặp ở: <b>ProfileView.tsx</b> (<code class="inl">const [profile, setProfile] = useState(...)</code>, <code class="inl">[isEditing, setIsEditing]</code>)</div>
+      <div class="analogy"><b>Như bảng trắng trong lớp:</b> bạn xoá số cũ viết số mới (<code class="inl">setState</code>), cả lớp (giao diện) tự nhìn theo số mới.</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán:</b> trong <code class="inl">ProfileView.tsx</code>, đổi giá trị khởi tạo <code class="inl">useState(false)</code> của <code class="inl">isEditing</code> thành <code class="inl">useState(true)</code> thì khi mở hồ sơ của mình sẽ ra sao?</li>
+          <li>Đổi, chạy <code class="inl">npm run dev</code>, mở hồ sơ chính mình.</li>
+          <li>Hoàn tác bằng <code class="inl">git restore</code>.</li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">Modal mở ra là vào thẳng <b>chế độ sửa</b> luôn (ô nhập bio, nút Lưu hiện sẵn), vì state khởi tạo đã là "đang sửa". Bài học: giá trị khởi tạo của <code class="inl">useState</code> quyết định trạng thái ban đầu của giao diện.</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> khai báo một state đếm số, khởi tạo 0.
+        <details class="box"><summary>Xem đáp án</summary><div class="ans"><code class="inl">const [count, setCount] = useState(0);</code></div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: muốn đổi state thì làm cách nào?</summary>
+        <div class="ans">Gọi hàm <code class="inl">set...</code> (vd <code class="inl">setProfile(newValue)</code>) — KHÔNG gán trực tiếp vào biến. Chỉ hàm set mới báo cho React vẽ lại.</div></details>
+      <label class="recall"><input type="checkbox" data-recall="f1"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <!-- F2 -->
+    <div class="concept">
+      <h4><span class="badge">F2</span> <code class="inl">useEffect</code></h4>
+      <div class="core">Cốt lõi: <b>"việc bên lề chạy đúng lúc"</b> — gọi API, mở kết nối — khi thứ trong mảng <code class="inl">[ ]</code> đổi.</div>
+      <div class="where">Gặp ở: <b>ProfileView.tsx</b> (<code class="inl">useEffect(() =&gt; { if (isOpen...) fetchProfile() }, [isOpen, userId])</code>)</div>
+      <div class="analogy"><b>Như công tắc cảm ứng:</b> "khi cửa mở (<code class="inl">isOpen</code> đổi) thì bật đèn (tải hồ sơ)". Mảng <code class="inl">[ ]</code> liệt kê "những cái mà khi đổi thì việc chạy lại".</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán:</b> bỏ <code class="inl">userId</code> khỏi mảng phụ thuộc (để còn <code class="inl">[isOpen]</code>) thì khi bấm xem 2 hồ sơ KHÁC nhau liên tiếp sẽ ra sao?</li>
+          <li>Sửa, chạy lại, mở hồ sơ người A rồi đóng, mở hồ sơ người B.</li>
+          <li>Hoàn tác bằng <code class="inl">git restore</code>.</li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">Hồ sơ B hiện ra dữ liệu CŨ của A (hoặc không cập nhật), vì effect chỉ chạy lại khi <code class="inl">isOpen</code> đổi, mà <code class="inl">userId</code> đổi thì nó "không quan tâm". Bài học: thiếu phụ thuộc trong <code class="inl">[ ]</code> = bug "dữ liệu cũ" rất hay gặp.</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> viết useEffect chỉ chạy đúng 1 lần khi component xuất hiện.
+        <details class="box"><summary>Xem đáp án</summary><div class="ans"><code class="inl">useEffect(() =&gt; { /* ... */ }, []);</code> — mảng rỗng = chạy 1 lần.</div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: mảng <code class="inl">[ ]</code> ở cuối <code class="inl">useEffect</code> để làm gì?</summary>
+        <div class="ans">Liệt kê các giá trị mà <b>khi chúng đổi</b> thì effect chạy lại. Mảng rỗng <code class="inl">[]</code> = chỉ chạy 1 lần. Không có mảng = chạy lại mỗi lần render (thường là sai).</div></details>
+      <label class="recall"><input type="checkbox" data-recall="f2"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <!-- F3 -->
+    <div class="concept">
+      <h4><span class="badge">F3</span> <code class="inl">useCallback</code> + <code class="inl">React.memo</code></h4>
+      <div class="core">Cốt lõi: <b>memo = chỉ vẽ lại khi props đổi</b>; <b>useCallback = giữ hàm "ổn định" để memo có tác dụng</b>.</div>
+      <div class="where">Gặp ở: <b>MessageBubble.tsx</b> (<code class="inl">React.memo(...)</code> cuối file) · <b>ChatView.tsx</b> (<code class="inl">handleOpenProfile = useCallback(...)</code>)</div>
+      <div class="analogy"><b>Như sơn nhà:</b> chỉ sơn lại đúng cánh cửa bị bẩn (<code class="inl">memo</code>), không sơn lại cả nhà mỗi lần có một vết bẩn nhỏ.</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán:</b> ở cuối <code class="inl">MessageBubble.tsx</code>, bỏ <code class="inl">React.memo(...)</code> (export thẳng component trần) thì khi AI stream trong phòng nhiều tin sẽ ra sao?</li>
+          <li>Sửa, chạy lại, vào phòng có nhiều tin nhắn, gõ <code class="inl">@copilot</code> một câu dài.</li>
+          <li>Hoàn tác bằng <code class="inl">git restore</code>.</li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">Mỗi mẩu chữ AI về, <b>MỌI</b> bong bóng trong phòng re-render lại (không chỉ bong bóng đang stream) — phòng càng nhiều tin càng dễ thấy giật/lag. Đó đúng là lý do dự án tách <code class="inl">MessageBubble</code> + bọc <code class="inl">memo</code>.</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> nhớ cặp đôi đi cùng nhau: cái nào bọc component, cái nào bọc hàm?
+        <details class="box"><summary>Xem đáp án</summary><div class="ans"><code class="inl">React.memo</code> bọc <b>component</b>; <code class="inl">useCallback</code> bọc <b>hàm</b> truyền xuống component đó.</div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: vì sao <code class="inl">memo</code> cần <code class="inl">useCallback</code> đi kèm mới hiệu quả?</summary>
+        <div class="ans">Vì nếu hàm (vd <code class="inl">onTranslate</code>) bị tạo MỚI mỗi lần render, thì với component con, "props đã đổi" → <code class="inl">memo</code> tưởng có thay đổi và vẫn vẽ lại → memo vô dụng. <code class="inl">useCallback</code> giữ cùng một hàm qua các lần render.</div></details>
+      <label class="recall"><input type="checkbox" data-recall="f3"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <!-- F4 -->
+    <div class="concept">
+      <h4><span class="badge">F4</span> TypeScript <code class="inl">interface</code> + dấu <code class="inl">?</code> (optional)</h4>
+      <div class="core">Cốt lõi: <b>interface = bản kê khai hình dạng dữ liệu</b>; <b>dấu <code class="inl">?</code> = trường này có thể vắng mặt</b>.</div>
+      <div class="where">Gặp ở: <b>ProfileView.tsx</b> (<code class="inl">interface UserProfileData { ... avatarUrl: string | null; }</code>, <code class="inl">interface SocialLink { label: string; url: string }</code>)</div>
+      <div class="analogy"><b>Như tờ khai hải quan:</b> phải có đúng các ô quy định; ô có dấu <code class="inl">?</code> là "không bắt buộc điền". Khai sai/thiếu ô bắt buộc → TypeScript chặn ngay lúc viết code.</div>
+      <div class="lab"><div class="lh">🔬 Lab</div>
+        <ol>
+          <li><b>Dự đoán:</b> trong <code class="inl">interface SocialLink</code>, xoá hẳn dòng <code class="inl">label: string;</code> thì <code class="inl">npx tsc --noEmit</code> sẽ ra sao? (gợi ý: chỗ tạo object social link có dùng <code class="inl">label</code>)</li>
+          <li>Xoá dòng đó, chạy <code class="inl">npx tsc --noEmit</code> trong thư mục frontend.</li>
+          <li>Hoàn tác bằng <code class="inl">git restore</code>.</li>
+        </ol>
+        <details class="box"><summary>Mở đáp án để so</summary><div class="ans">TypeScript báo lỗi tại nơi đọc/ghi <code class="inl">link.label</code>: <i>"Property 'label' does not exist on type 'SocialLink'"</i>. Bài học: interface là "hợp đồng" — ai dùng sai hình dạng dữ liệu sẽ bị bắt lỗi <b>trước khi chạy</b>.</div></details>
+      </div>
+      <div class="blank"><b>✍️ Trang trắng:</b> viết interface User gồm id (số), name (chuỗi), bio (chuỗi, không bắt buộc).
+        <details class="box"><summary>Xem đáp án</summary><div class="ans"><code class="inl">interface User { id: number; name: string; bio?: string; }</code></div></details>
+      </div>
+      <details class="box"><summary>🧠 Tự kiểm tra: <code class="inl">string | null</code> khác <code class="inl">string</code> + dấu <code class="inl">?</code> thế nào?</summary>
+        <div class="ans"><code class="inl">avatarUrl: string | null</code> = trường <b>bắt buộc có mặt</b>, nhưng giá trị được phép là <code class="inl">null</code>. <code class="inl">bio?: string</code> = trường được phép <b>vắng hẳn</b> (undefined). Tinh tế nhưng quan trọng khi đọc dữ liệu API.</div></details>
+      <label class="recall"><input type="checkbox" data-recall="f4"> Tôi đã tự recall được khái niệm này (không nhìn)</label>
+    </div>
+
+    <h3>🎓 Capstone — tự đọc 1 file LẠ</h3>
+    <p>Đây là phép thử thật cho mục tiêu của bạn: <b>đọc được file chưa ai giải thích</b>. Hai file dưới đây
+      <i>chưa</i> xuất hiện trong 8 chương trước. Áp đúng <b>"Soi file lạ trong 60 giây"</b> ở đầu chương,
+      <b>tự viết</b> câu trả lời ra giấy/notepad <b>trước</b>, rồi mới mở đáp án. Không hỏi AI.</p>
+
+    <div class="concept">
+      <h4><span class="badge">🎯</span> File 1: <code class="inl">Services/TokenService.cs</code></h4>
+      <p style="font-size:14px;">Mở file đó. Tự trả lời 3 câu, viết ra trước khi mở đáp án:</p>
+      <ol style="font-size:14px;"><li>File này <b>làm gì</b> (một câu)?</li><li><b>Ai gọi</b> nó?</li><li><b>Dữ liệu đi đâu</b> (đầu vào → đầu ra)?</li></ol>
+      <details class="box"><summary>Mở đáp án để so (chỉ mở sau khi đã tự viết)</summary><div class="ans">
+        <b>1. Làm gì:</b> tạo ra một <b>JWT token</b> (tấm vé đăng nhập) cho một <code class="inl">User</code>, có hạn 7 ngày, ký bằng khoá bí mật.<br>
+        <b>2. Ai gọi:</b> <code class="inl">AuthController</code> — khi đăng ký/đăng nhập thành công thì gọi <code class="inl">_tokenService.CreateToken(user)</code>.<br>
+        <b>3. Dữ liệu:</b> đầu vào là <code class="inl">User</code> (lấy id + username nhét vào "claims"); đầu ra là một <b>chuỗi token</b> trả về client, client lưu vào <code class="inl">localStorage</code> rồi đính kèm mỗi request.<br>
+        <i>Khái niệm đã học xuất hiện ở đây:</i> DI (constructor nhận <code class="inl">IConfiguration</code>), generic không nhiều, nhưng có <code class="inl">new[] { new Claim(...) }</code> và đọc config kiểu <code class="inl">_config["JwtSettings:Secret"]</code>.
+      </div></details>
+    </div>
+
+    <div class="concept">
+      <h4><span class="badge">🎯</span> File 2: <code class="inl">Repositories/PrivateChatRepository.cs</code></h4>
+      <p style="font-size:14px;">Cùng cách. Đặc biệt chú ý hàm <code class="inl">GetOrCreate</code> — có một mẹo nhỏ rất đáng học.</p>
+      <ol style="font-size:14px;"><li>File này <b>làm gì</b>?</li><li><b>Ai gọi</b> nó?</li><li><code class="inl">Math.Min</code>/<code class="inl">Math.Max</code> ở đầu <code class="inl">GetOrCreate</code> để làm gì?</li></ol>
+      <details class="box"><summary>Mở đáp án để so (chỉ mở sau khi đã tự viết)</summary><div class="ans">
+        <b>1. Làm gì:</b> lấy <b>hoặc tạo</b> một cuộc hội thoại 1-1 (<code class="inl">private_chats</code>) giữa 2 user — nếu đã có thì trả về, chưa có thì <code class="inl">INSERT</code> rồi trả về.<br>
+        <b>2. Ai gọi:</b> phần xử lý chat 1-1 (UsersController / ChatHub) khi 2 người bắt đầu nhắn riêng.<br>
+        <b>3. Mẹo <code class="inl">Math.Min/Max</code>:</b> luôn đặt id nhỏ vào <code class="inl">u1</code>, id lớn vào <code class="inl">u2</code> — để cặp (A,B) và (B,A) <b>chỉ tạo MỘT</b> bản ghi, khớp ràng buộc <code class="inl">UNIQUE (user1_id, user2_id)</code>. Không có mẹo này sẽ tạo trùng 2 phòng cho cùng 2 người.<br>
+        <i>Khái niệm đã học xuất hiện ở đây:</i> async/await, DI, Dapper tham số hoá (<code class="inl">@u1, @u2</code>), generic <code class="inl">QueryFirstOrDefaultAsync&lt;PrivateChat&gt;</code>.
+      </div></details>
+    </div>
+
+    <div class="goldrule">
+      🏁 <b>Tự chấm:</b> nếu bạn viết được phần lớn 3 câu cho cả 2 file <b>mà không cần AI</b> — bạn đã đạt mục tiêu
+      "đọc được file lạ". Nếu chưa, đừng nản: quay lại thẻ khái niệm tương ứng, làm lại Lab, rồi thử capstone sau 2-3 ngày.
+      Lặp lại cách quãng (spaced) chính là thứ khắc sâu nền tảng.
+    </div>
+  </section>
+
+    <p class="end">Hết 9 chương. Chương 1-8 cho bạn <b>hiểu</b>; chương 9 cho bạn <b>tự đứng được</b>.
+    Mở source ra, làm Lab bằng tay, và nhớ quy tắc vàng: <b>vật lộn trước, hỏi AI sau</b>. 🚀</p>
   </main>
   </div>
 </div>
@@ -1012,6 +1347,33 @@ document.querySelectorAll('.code').forEach(box=>{
       bubble.textContent += (i?' ':'') + words[i++];
     },90);
   });
+})();
+
+/* ===== Chương 9: theo dõi recall bằng localStorage (offline, không cần AI) ===== */
+(function(){
+  const KEY='nentang-recall';
+  let saved={};
+  try{ saved=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ saved={}; }
+  const boxes=[...document.querySelectorAll('input[data-recall]')];
+  if(!boxes.length) return;
+  const fill=document.getElementById('recallFill');
+  const label=document.getElementById('recallLabel');
+  function render(){
+    const done=boxes.filter(b=>b.checked).length;
+    if(fill) fill.style.width=(done/boxes.length*100)+'%';
+    if(label) label.textContent= done===boxes.length
+      ? 'Bạn đã tự recall cả '+boxes.length+'/'+boxes.length+' khái niệm — tuyệt! Ôn lại sau 3 ngày để khắc sâu.'
+      : 'Bạn đã tự recall '+done+'/'+boxes.length+' khái niệm.';
+  }
+  boxes.forEach(b=>{
+    if(saved[b.dataset.recall]) b.checked=true;
+    b.addEventListener('change',()=>{
+      saved[b.dataset.recall]=b.checked;
+      try{ localStorage.setItem(KEY,JSON.stringify(saved)); }catch(e){}
+      render();
+    });
+  });
+  render();
 })();
 </script>
 </body>
