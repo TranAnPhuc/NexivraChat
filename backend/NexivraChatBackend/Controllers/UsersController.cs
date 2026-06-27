@@ -17,15 +17,38 @@ namespace NexivraChatBackend.Controllers
         private readonly UserRepository _userRepository;
         private readonly PrivateChatRepository _privateChatRepository;
         private readonly MessageRepository _messageRepository;
+        private readonly ConversationReadRepository _conversationReadRepository;
 
         public UsersController(
-            UserRepository userRepository, 
+            UserRepository userRepository,
             PrivateChatRepository privateChatRepository,
-            MessageRepository messageRepository)
+            MessageRepository messageRepository,
+            ConversationReadRepository conversationReadRepository)
         {
             _userRepository = userRepository;
             _privateChatRepository = privateChatRepository;
             _messageRepository = messageRepository;
+            _conversationReadRepository = conversationReadRepository;
+        }
+
+        // Số tin chưa đọc theo phòng và theo DM cho user hiện tại.
+        [HttpGet("unread-counts")]
+        public async Task<IActionResult> GetUnreadCounts()
+        {
+            var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserIdStr) || !int.TryParse(currentUserIdStr, out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return Unauthorized();
+            }
+
+            var counts = await _conversationReadRepository.GetUnreadCounts(currentUserId, username);
+            return Ok(counts);
         }
 
         [HttpGet]

@@ -60,21 +60,49 @@ namespace NexivraChatBackend.Data
                         last_analyzed_at TIMESTAMP
                     );";
 
+                // 6. Tạo bảng conversation_reads (theo dõi "đã đọc đến đâu" cho mỗi user × hội thoại).
+                //    Đúng 1 trong (room_id, private_chat_id) khác NULL (CHECK). Unread tính bằng
+                //    số messages có id > last_read_message_id.
+                var createConversationReadsTable = @"
+                    CREATE TABLE IF NOT EXISTS conversation_reads (
+                        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        room_id INT REFERENCES chat_rooms(id) ON DELETE CASCADE,
+                        private_chat_id INT REFERENCES private_chats(id) ON DELETE CASCADE,
+                        last_read_message_id INT NOT NULL DEFAULT 0,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                        CONSTRAINT chk_reads_one_target CHECK ((room_id IS NULL) <> (private_chat_id IS NULL))
+                    );";
+
                 connection.Execute(createUsersTable);
                 connection.Execute(createRoomsTable);
                 connection.Execute(createPrivateChatsTable);
                 connection.Execute(createMessagesTable);
                 connection.Execute(createUserProfilesTable);
+                connection.Execute(createConversationReadsTable);
 
-                // 6. Tạo index tối ưu truy vấn lịch sử tin nhắn (idempotent)
+                // 7. Tạo index tối ưu truy vấn lịch sử tin nhắn (idempotent)
                 var createMessageIndexes = @"
                     CREATE INDEX IF NOT EXISTS idx_messages_room_created
                         ON messages (room_id, created_at);
                     CREATE INDEX IF NOT EXISTS idx_messages_private_created
                         ON messages (private_chat_id, created_at);
                     CREATE INDEX IF NOT EXISTS idx_messages_sender
-                        ON messages (sender_name);";
+                        ON messages (sender_name);
+                    -- Phục vụ truy vấn unread (id > last_read), không phải theo created_at
+                    CREATE INDEX IF NOT EXISTS idx_messages_room_id
+                        ON messages (room_id, id);
+                    CREATE INDEX IF NOT EXISTS idx_messages_private_id
+                        ON messages (private_chat_id, id);";
                 connection.Execute(createMessageIndexes);
+
+                // 8. Index unique từng phần cho conversation_reads (NULL bị coi distinct nên
+                //    UNIQUE(user_id, room_id) thường sẽ cho trùng hàng DM — phải dùng partial index).
+                var createConversationReadIndexes = @"
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_reads_room
+                        ON conversation_reads (user_id, room_id) WHERE room_id IS NOT NULL;
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_reads_dm
+                        ON conversation_reads (user_id, private_chat_id) WHERE private_chat_id IS NOT NULL;";
+                connection.Execute(createConversationReadIndexes);
 
                 // 4. Seed phòng mặc định nếu rỗng
                 var checkRooms = "SELECT COUNT(*) FROM chat_rooms";

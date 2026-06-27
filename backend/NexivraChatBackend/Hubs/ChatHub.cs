@@ -17,17 +17,20 @@ namespace NexivraChatBackend.Hubs
         private readonly AiService _aiService;
         private readonly PresenceTracker _presenceTracker;
         private readonly PrivateChatRepository _privateChatRepository;
+        private readonly ConversationReadRepository _conversationReadRepository;
 
         public ChatHub(
-            MessageRepository messageRepository, 
-            AiService aiService, 
+            MessageRepository messageRepository,
+            AiService aiService,
             PresenceTracker presenceTracker,
-            PrivateChatRepository privateChatRepository)
+            PrivateChatRepository privateChatRepository,
+            ConversationReadRepository conversationReadRepository)
         {
             _messageRepository = messageRepository;
             _aiService = aiService;
             _presenceTracker = presenceTracker;
             _privateChatRepository = privateChatRepository;
+            _conversationReadRepository = conversationReadRepository;
         }
 
         public async Task JoinRoom(int roomId)
@@ -106,6 +109,10 @@ namespace NexivraChatBackend.Hubs
 
             // 2. Phát tin nhắn người dùng tới toàn phòng chat
             await Clients.Group(roomString).SendAsync("ReceiveMessage", userMessage);
+
+            // 2b. Tín hiệu unread nhẹ tới MỌI user (phòng công khai, group không tới được
+            //     người đang ở phòng khác). Client tự tăng badge nếu phòng này không active.
+            await Clients.All.SendAsync("UnreadUpdate", new { type = "room", id = roomId });
 
             // 3. Xử lý gọi trợ lý AI nếu tin nhắn bắt đầu bằng tag @copilot
             if (content.Trim().StartsWith("@copilot", StringComparison.OrdinalIgnoreCase))
@@ -202,6 +209,44 @@ namespace NexivraChatBackend.Hubs
 
             // 3. Phát tin nhắn riêng tư tới cả người gửi và người nhận
             await Clients.Users(senderId.ToString(), receiverId.ToString()).SendAsync("ReceivePrivateMessage", userMessage);
+
+            // 3b. Tín hiệu unread tới người nhận. id = NGƯỜI GỬI (đối thoại từ góc nhìn
+            //     người nhận) để khớp badge keyed-by-user ở sidebar.
+            await Clients.User(receiverId.ToString()).SendAsync("UnreadUpdate", new { type = "private", id = senderId });
+        }
+
+        // Đánh dấu đã đọc một hội thoại tới lastReadMessageId (id tin cuối client đã render).
+        // DM phải kiểm tra người gọi là thành viên (như UsersController.GetPrivateChatMessages).
+        public async Task MarkRead(int? roomId, int? privateChatId, int lastReadMessageId)
+        {
+            var meStr = Context.UserIdentifier;
+            if (string.IsNullOrEmpty(meStr) || !int.TryParse(meStr, out var me))
+            {
+                throw new HubException("Không xác định được danh tính người dùng.");
+            }
+
+            if (roomId.HasValue)
+            {
+                await _conversationReadRepository.MarkRoomRead(me, roomId.Value, lastReadMessageId);
+                // Đồng bộ các tab khác của chính user (badge phòng về 0).
+                await Clients.User(meStr).SendAsync("ReadUpdate", new { roomId = (int?)roomId.Value, privateChatUserId = (int?)null });
+            }
+            else if (privateChatId.HasValue)
+            {
+                var chat = await _privateChatRepository.GetById(privateChatId.Value);
+                if (chat == null || (chat.User1Id != me && chat.User2Id != me))
+                {
+                    throw new HubException("Bạn không có quyền với hội thoại này.");
+                }
+                await _conversationReadRepository.MarkPrivateChatRead(me, privateChatId.Value, lastReadMessageId);
+                // ReadUpdate keyed theo người đối thoại để khớp badge sidebar.
+                var otherUserId = chat.User1Id == me ? chat.User2Id : chat.User1Id;
+                await Clients.User(meStr).SendAsync("ReadUpdate", new { roomId = (int?)null, privateChatUserId = (int?)otherUserId });
+            }
+            else
+            {
+                throw new HubException("Cần roomId hoặc privateChatId.");
+            }
         }
     }
 }

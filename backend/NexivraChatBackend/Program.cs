@@ -20,6 +20,7 @@ builder.Services.AddScoped<RoomRepository>();
 builder.Services.AddScoped<MessageRepository>();
 builder.Services.AddScoped<PrivateChatRepository>();
 builder.Services.AddScoped<ProfileRepository>();
+builder.Services.AddScoped<ConversationReadRepository>();
 
 // 3. Đăng ký các Services phụ trợ
 builder.Services.AddScoped<TokenService>();

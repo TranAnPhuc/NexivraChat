@@ -47,6 +47,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [translations, setTranslations] = useState<Record<number, string>>({});
   const [translatingIds, setTranslatingIds] = useState<Record<number, boolean>>({});
+  // Số tin chưa đọc theo phòng / theo DM. Key là id (number; object JS coerce "1"===1 nên
+  // dữ liệu JSON từ backend với key string vẫn tra cứu được bằng number).
+  const [unread, setUnread] = useState<{ rooms: Record<number, number>; privateChats: Record<number, number> }>({ rooms: {}, privateChats: {} });
   const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   // Chỉ mount ProfileView (lazy chunk) sau lần đầu mở hồ sơ; giữ mount để Modal có animation đóng/mở.
@@ -56,6 +59,40 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   // (không tạo lại khi presence cập nhật), nhờ đó React.memo của MessageBubble giữ hiệu lực.
   const usersRef = useRef(users);
   useEffect(() => { usersRef.current = users; }, [users]);
+
+  // Đánh dấu một hội thoại đã đọc.
+  // - serverId: room → roomId; private → privateChatId (khóa lưu trữ).
+  // - badgeKey: room → roomId; private → id NGƯỜI ĐỐI THOẠI (khóa badge ở sidebar).
+  //   Bỏ qua xóa badge nếu badgeKey không truyền (vd hội thoại đang mở, badge vốn = 0).
+  const markConversationRead = useCallback((type: 'room' | 'private', serverId: number | null, lastMessageId: number, badgeKey?: number) => {
+    if (!serverId) return;
+    if (badgeKey !== undefined && badgeKey !== null) {
+      setUnread((prev) => {
+        const key = type === 'room' ? 'rooms' : 'privateChats';
+        if (prev[key][badgeKey] === undefined) return prev;
+        const inner = { ...prev[key] };
+        delete inner[badgeKey];
+        return { ...prev, [key]: inner };
+      });
+    }
+    const conn = connectionRef.current;
+    if (!conn || conn.state !== 'Connected') return;
+    const lastId = lastMessageId && lastMessageId > 0 ? lastMessageId : 0;
+    if (type === 'room') conn.invoke('MarkRead', serverId, null, lastId).catch(() => {});
+    else conn.invoke('MarkRead', null, serverId, lastId).catch(() => {});
+  }, []);
+
+  const fetchUnreadCounts = useCallback(async () => {
+    try {
+      const response = await api.get('/users/unread-counts');
+      setUnread({
+        rooms: response.data.rooms || {},
+        privateChats: response.data.privateChats || {},
+      });
+    } catch (err) {
+      console.error('Không thể lấy số tin chưa đọc.', err);
+    }
+  }, []);
 
   const handleOpenProfile = useCallback((userId: number) => {
     setProfileUserId(userId);
@@ -81,6 +118,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const activeRoomIdRef = useRef<number | null>(null);
   const activePrivateChatIdRef = useRef<number | null>(null);
   const activeChatTypeRef = useRef<'room' | 'private'>('room');
+  // id người đối thoại của DM đang mở (khóa badge keyed-by-user).
+  const activeRecipientIdRef = useRef<number | null>(null);
   // Phòng đang tham gia trên hub, để Leave đúng phòng cũ khi chuyển phòng
   const prevRoomRef = useRef<number | null>(null);
 
@@ -114,23 +153,31 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   useEffect(() => {
     fetchRooms();
     fetchUsers();
+    fetchUnreadCounts();
   }, []);
 
-  // 3. Tải lịch sử tin nhắn phòng chat
+  // 3. Tải lịch sử tin nhắn phòng chat (mở phòng = đã đọc tới tin cuối)
   const fetchMessageHistory = async (roomId: number) => {
     try {
       const response = await api.get(`/rooms/${roomId}/messages?limit=50&offset=0`);
       setMessages(response.data);
+      const data = response.data as Message[];
+      const lastId = data.length ? data[data.length - 1].id : 0;
+      markConversationRead('room', roomId, lastId, roomId);
     } catch (err) {
       message.error('Không thể lấy lịch sử tin nhắn.');
     }
   };
 
-  // 4. Tải lịch sử tin nhắn riêng tư
-  const fetchPrivateMessageHistory = async (chatId: number) => {
+  // 4. Tải lịch sử tin nhắn riêng tư (mở DM = đã đọc tới tin cuối).
+  //    recipientUserId là khóa badge ở sidebar (DM key theo người đối thoại).
+  const fetchPrivateMessageHistory = async (chatId: number, recipientUserId?: number) => {
     try {
       const response = await api.get(`/users/private-chat/${chatId}/messages?limit=50&offset=0`);
       setMessages(response.data);
+      const data = response.data as Message[];
+      const lastId = data.length ? data[data.length - 1].id : 0;
+      markConversationRead('private', chatId, lastId, recipientUserId);
     } catch (err) {
       message.error('Không thể lấy lịch sử tin nhắn riêng tư.');
     }
@@ -140,6 +187,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   useEffect(() => { activeRoomIdRef.current = activeRoomId; }, [activeRoomId]);
   useEffect(() => { activePrivateChatIdRef.current = activePrivateChatId; }, [activePrivateChatId]);
   useEffect(() => { activeChatTypeRef.current = activeChatType; }, [activeChatType]);
+  useEffect(() => { activeRecipientIdRef.current = activeRecipient?.id ?? null; }, [activeRecipient]);
 
   // Effect C: Đổi phòng/hội thoại — tải lịch sử, reset UI, và Leave/Join trên hub.
   useEffect(() => {
@@ -166,7 +214,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         }
       }
     } else if (activeChatType === 'private' && activePrivateChatId !== null) {
-      fetchPrivateMessageHistory(activePrivateChatId);
+      fetchPrivateMessageHistory(activePrivateChatId, activeRecipient?.id);
 
       if (connection && connection.state === 'Connected') {
         const prev = prevRoomRef.current;
@@ -199,6 +247,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
           if (prev.some(m => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
         });
+        // Tin tới phòng đang mở → đánh dấu đã đọc (badge giữ 0, advance last_read).
+        if (newMessage.id > 0 && newMessage.roomId) {
+          markConversationRead('room', newMessage.roomId, newMessage.id, newMessage.roomId);
+        }
       }
     });
 
@@ -209,7 +261,39 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
           if (prev.some(m => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
         });
+        if (newMessage.id > 0 && newMessage.privateChatId) {
+          markConversationRead('private', newMessage.privateChatId, newMessage.id);
+        }
       }
+    });
+
+    // Tín hiệu unread: tăng badge nếu hội thoại KHÔNG đang mở.
+    conn.on('UnreadUpdate', (payload: { type: 'room' | 'private'; id: number }) => {
+      const { type, id } = payload;
+      const isActive = type === 'room'
+        ? (activeChatTypeRef.current === 'room' && id === activeRoomIdRef.current)
+        : (activeChatTypeRef.current === 'private' && id === activeRecipientIdRef.current);
+      if (isActive) return;
+      setUnread((prev) => {
+        const key = type === 'room' ? 'rooms' : 'privateChats';
+        const cur = prev[key][id] || 0;
+        return { ...prev, [key]: { ...prev[key], [id]: cur + 1 } };
+      });
+    });
+
+    // Đồng bộ "đã đọc" giữa các tab của chính user.
+    conn.on('ReadUpdate', (payload: { roomId: number | null; privateChatUserId: number | null }) => {
+      setUnread((prev) => {
+        if (payload.roomId) {
+          const inner = { ...prev.rooms }; delete inner[payload.roomId];
+          return { ...prev, rooms: inner };
+        }
+        if (payload.privateChatUserId) {
+          const inner = { ...prev.privateChats }; delete inner[payload.privateChatUserId];
+          return { ...prev, privateChats: inner };
+        }
+        return prev;
+      });
     });
 
     // Lắng nghe stream chữ từ AI Copilot
@@ -274,6 +358,19 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       });
     });
 
+    // Sau khi kết nối lại: rejoin phòng + refetch tin hội thoại đang mở + refetch unread
+    // (fold resync tối thiểu — tin đến lúc mất mạng không bị bỏ lỡ trên badge).
+    conn.onreconnected(() => {
+      fetchUnreadCounts();
+      if (activeChatTypeRef.current === 'room' && activeRoomIdRef.current !== null) {
+        conn.invoke('JoinRoom', activeRoomIdRef.current).catch(() => {});
+        prevRoomRef.current = activeRoomIdRef.current;
+        fetchMessageHistory(activeRoomIdRef.current);
+      } else if (activeChatTypeRef.current === 'private' && activePrivateChatIdRef.current !== null) {
+        fetchPrivateMessageHistory(activePrivateChatIdRef.current, activeRecipientIdRef.current ?? undefined);
+      }
+    });
+
     conn.start()
       .then(() => {
         if (cancelled) return;
@@ -302,6 +399,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       conn.off('PresenceUpdate');
       conn.off('GlobalPresenceUpdate');
       conn.off('TypingUpdate');
+      conn.off('UnreadUpdate');
+      conn.off('ReadUpdate');
       prevRoomRef.current = null;
       conn.stop().catch(() => {});
     };
@@ -316,6 +415,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     prevMessageCountRef.current = messages.length;
     messageEndRef.current?.scrollIntoView({ behavior: isNewMessage ? 'smooth' : 'auto' });
   }, [messages]);
+
+  // Tổng unread → tiêu đề tab "(N) Nexivra Chat" để thấy khi tab ở nền.
+  useEffect(() => {
+    const total =
+      Object.values(unread.rooms).reduce((a, b) => a + b, 0) +
+      Object.values(unread.privateChats).reduce((a, b) => a + b, 0);
+    document.title = total > 0 ? `(${total}) Nexivra Chat` : 'Nexivra Chat';
+  }, [unread]);
 
   const sendTyping = (isTyping: boolean) => {
     const conn = connectionRef.current;
@@ -423,7 +530,6 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         rooms={rooms}
         users={users}
         activeRoomId={activeRoomId}
-        activePrivateChatId={activePrivateChatId}
         activeChatType={activeChatType}
         onSelectRoom={handleSelectRoom}
         onSelectUser={handleSelectUser}
@@ -431,6 +537,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         onLogout={onLogout}
         username={username}
         onOpenProfile={handleOpenProfile}
+        unreadRooms={unread.rooms}
+        unreadPrivateChats={unread.privateChats}
+        activePrivateUserId={activeRecipient?.id ?? null}
       />
 
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-surface)', position: 'relative' }}>
