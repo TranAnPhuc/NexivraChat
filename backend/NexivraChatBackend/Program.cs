@@ -53,14 +53,14 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 
-    // Hỗ trợ truyền Token qua Query String khi kết nối SignalR
+    // Hỗ trợ truyền Token qua Query String khi kết nối SignalR và tải file đính kèm (/api/files)
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
-            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chatHub"))
+            if (!string.IsNullOrEmpty(accessToken) && (path.StartsWithSegments("/chatHub") || path.StartsWithSegments("/api/files")))
             {
                 context.Token = accessToken;
             }

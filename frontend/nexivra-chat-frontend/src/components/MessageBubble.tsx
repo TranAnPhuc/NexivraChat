@@ -97,6 +97,11 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     });
   };
 
+  const token = localStorage.getItem('token') || '';
+  const fullAttachmentUrl = msg.attachmentUrl
+    ? `${baseUrl}${msg.attachmentUrl}${token ? `?access_token=${encodeURIComponent(token)}` : ''}`
+    : '';
+
   return (
     <div id={`msg-${msg.id}`} style={{ display: 'flex', flexDirection: 'column', alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '74%', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
       <div style={{ fontSize: '11px', color: isAi ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -200,14 +205,14 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
               {isImageAttachment ? (
                 <div style={{ marginTop: '4px', marginBottom: '4px' }}>
                   <Image
-                    src={`${baseUrl}${msg.attachmentUrl}`}
+                    src={fullAttachmentUrl}
                     alt={msg.attachmentName || 'Ảnh đính kèm'}
                     style={{ maxWidth: '240px', maxHeight: '240px', borderRadius: '8px', objectFit: 'cover' }}
                   />
                 </div>
               ) : (
                 <a
-                  href={`${baseUrl}${msg.attachmentUrl}`}
+                  href={fullAttachmentUrl}
                   download={msg.attachmentName}
                   target="_blank"
                   rel="noopener noreferrer"

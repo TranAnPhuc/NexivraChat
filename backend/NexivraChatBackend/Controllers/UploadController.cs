@@ -60,7 +60,7 @@ namespace NexivraChatBackend.Controllers
             // 3. Đổi tên file an toàn {guid}{ext} (Threat-Model #3)
             var year = DateTime.Now.ToString("yyyy");
             var month = DateTime.Now.ToString("MM");
-            var uploadsFolder = Path.Combine(_environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads", year, month);
+            var uploadsFolder = Path.Combine(_environment.ContentRootPath, "uploads", year, month);
 
             if (!Directory.Exists(uploadsFolder))
             {
@@ -75,7 +75,7 @@ namespace NexivraChatBackend.Controllers
                 await file.CopyToAsync(stream);
             }
 
-            var relativeUrl = $"/uploads/{year}/{month}/{serverFileName}";
+            var relativeUrl = $"/api/files/{year}/{month}/{serverFileName}";
 
             // Sanitize tên gốc chỉ để hiển thị (loại bỏ ký tự lạ)
             var safeDisplayName = Regex.Replace(originalFileName, @"[^\w\-. ]", "_");
