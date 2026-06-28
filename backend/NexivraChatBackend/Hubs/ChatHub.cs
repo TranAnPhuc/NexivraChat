@@ -76,6 +76,13 @@ namespace NexivraChatBackend.Hubs
             await Clients.OthersInGroup(roomString).SendAsync("TypingUpdate", roomId, username, isTyping);
         }
 
+        public async Task TypingPrivate(int receiverId, bool isTyping)
+        {
+            var senderIdStr = Context.UserIdentifier;
+            if (!int.TryParse(senderIdStr, out var senderId)) return;
+            await Clients.User(receiverId.ToString()).SendAsync("PrivateTypingUpdate", new { fromUserId = senderId, isTyping });
+        }
+
         public override async Task OnConnectedAsync()
         {
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";

@@ -63,6 +63,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [notifications, setNotifications] = useState<string[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [privateTypingFrom, setPrivateTypingFrom] = useState<number | null>(null);
   const [translations, setTranslations] = useState<Record<number, string>>({});
   const [translatingIds, setTranslatingIds] = useState<Record<number, boolean>>({});
   // Số tin chưa đọc theo phòng / theo DM. Key là id (number; object JS coerce "1"===1 nên
@@ -152,6 +153,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   }, [handleOpenProfile, username]);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const privateTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   
   const connectionRef = useRef<HubConnection | null>(null);
@@ -381,6 +383,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   useEffect(() => {
     setOnlineUsers([]);
     setTypingUsers([]);
+    setPrivateTypingFrom(null);
     setTranslations({});
     setTranslatingIds({});
     setReplyingTo(null);
@@ -393,6 +396,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       });
     }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (privateTypingTimeoutRef.current) clearTimeout(privateTypingTimeoutRef.current);
     isTypingRef.current = false;
 
     if (activeChatType === 'room' && activeRoomId !== null) {
@@ -560,6 +564,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         }
         return prev.filter((u) => u !== user);
       });
+    });
+
+    conn.on('PrivateTypingUpdate', (p: { fromUserId: number; isTyping: boolean }) => {
+      if (activeChatTypeRef.current !== 'private' || activeRecipientIdRef.current !== p.fromUserId) return;
+      if (privateTypingTimeoutRef.current) clearTimeout(privateTypingTimeoutRef.current);
+      setPrivateTypingFrom(p.isTyping ? p.fromUserId : null);
+      if (p.isTyping) {
+        privateTypingTimeoutRef.current = setTimeout(() => setPrivateTypingFrom(null), 4000);
+      }
     });
 
     conn.on('ReactionUpdate', (payload: { messageId: number; emoji: string; count: number; userId: number; reacted: boolean }) => {
@@ -760,6 +773,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       conn.off('PresenceUpdate');
       conn.off('GlobalPresenceUpdate');
       conn.off('TypingUpdate');
+      conn.off('PrivateTypingUpdate');
       conn.off('UnreadUpdate');
       conn.off('ReadUpdate');
       conn.off('SeenUpdate');
@@ -817,9 +831,18 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
 
   const sendTyping = (isTyping: boolean) => {
     const conn = connectionRef.current;
-    const roomId = activeRoomIdRef.current;
-    if (!conn || conn.state !== 'Connected' || roomId === null || activeChatTypeRef.current !== 'room') return;
-    conn.invoke('Typing', roomId, isTyping).catch(() => {});
+    if (!conn || conn.state !== 'Connected') return;
+    if (activeChatTypeRef.current === 'room') {
+      const roomId = activeRoomIdRef.current;
+      if (roomId !== null) {
+        conn.invoke('Typing', roomId, isTyping).catch(() => {});
+      }
+    } else if (activeChatTypeRef.current === 'private') {
+      const recipientId = activeRecipientIdRef.current;
+      if (recipientId !== null) {
+        conn.invoke('TypingPrivate', recipientId, isTyping).catch(() => {});
+      }
+    }
   };
 
   const filteredMentionUsers = useMemo(() => {
@@ -1134,6 +1157,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
           {activeChatType === 'room' && typingUsers.length > 0 && (
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
               {typingUsers.join(', ')} đang gõ…
+            </div>
+          )}
+          {activeChatType === 'private' && privateTypingFrom !== null && (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              {users.find((u) => u.id === privateTypingFrom)?.username ?? 'Đối phương'} đang gõ…
             </div>
           )}
           <div ref={messageEndRef} />
