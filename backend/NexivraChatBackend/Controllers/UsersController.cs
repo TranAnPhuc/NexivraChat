@@ -90,7 +90,7 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpGet("private-chat/{id}/messages")]
-        public async Task<IActionResult> GetPrivateChatMessages(int id, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
+        public async Task<IActionResult> GetPrivateChatMessages(int id, [FromQuery] int limit = 50, [FromQuery] int? beforeId = null)
         {
             var chat = await _privateChatRepository.GetById(id);
             if (chat == null)
@@ -110,7 +110,7 @@ namespace NexivraChatBackend.Controllers
                 return Forbid();
             }
 
-            var messages = await _messageRepository.GetMessagesByPrivateChat(id, limit, offset);
+            var messages = await _messageRepository.GetMessagesByPrivateChat(id, limit, beforeId);
             return Ok(messages);
         }
     }

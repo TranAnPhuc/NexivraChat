@@ -46,7 +46,7 @@ namespace NexivraChatBackend.Controllers
         }
 
         [HttpGet("{id}/messages")]
-        public async Task<IActionResult> GetRoomMessages(int id, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
+        public async Task<IActionResult> GetRoomMessages(int id, [FromQuery] int limit = 50, [FromQuery] int? beforeId = null)
         {
             var room = await _roomRepository.GetById(id);
             if (room == null)
@@ -54,7 +54,7 @@ namespace NexivraChatBackend.Controllers
                 return NotFound("Phòng chat không tồn tại.");
             }
 
-            var messages = await _messageRepository.GetMessagesByRoom(id, limit, offset);
+            var messages = await _messageRepository.GetMessagesByRoom(id, limit, beforeId);
             return Ok(messages);
         }
     }

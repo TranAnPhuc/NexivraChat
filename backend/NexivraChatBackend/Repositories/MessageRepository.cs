@@ -26,23 +26,23 @@ namespace NexivraChatBackend.Repositories
             }
         }
 
-        public async Task<List<Message>> GetMessagesByRoom(int roomId, int limit = 50, int offset = 0)
+        public async Task<List<Message>> GetMessagesByRoom(int roomId, int limit = 50, int? beforeId = null)
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE room_id = @roomId ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
-                var result = (await connection.QueryAsync<Message>(query, new { roomId, limit, offset })).ToList();
+                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE room_id = @roomId AND (@beforeId IS NULL OR id < @beforeId) ORDER BY id DESC LIMIT @limit;";
+                var result = (await connection.QueryAsync<Message>(query, new { roomId, limit, beforeId })).ToList();
                 result.Reverse(); // Trả về theo thứ tự thời gian tăng dần
                 return result;
             }
         }
 
-        public async Task<List<Message>> GetMessagesByPrivateChat(int privateChatId, int limit = 50, int offset = 0)
+        public async Task<List<Message>> GetMessagesByPrivateChat(int privateChatId, int limit = 50, int? beforeId = null)
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE private_chat_id = @privateChatId ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
-                var result = (await connection.QueryAsync<Message>(query, new { privateChatId, limit, offset })).ToList();
+                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE private_chat_id = @privateChatId AND (@beforeId IS NULL OR id < @beforeId) ORDER BY id DESC LIMIT @limit;";
+                var result = (await connection.QueryAsync<Message>(query, new { privateChatId, limit, beforeId })).ToList();
                 result.Reverse(); // Trả về theo thứ tự thời gian tăng dần
                 return result;
             }

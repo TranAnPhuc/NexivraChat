@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { flushSync } from 'react-dom';
 import { Input, Button, message } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
@@ -54,6 +55,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   // Chỉ mount ProfileView (lazy chunk) sau lần đầu mở hồ sơ; giữ mount để Modal có animation đóng/mở.
   const [profileEverOpened, setProfileEverOpened] = useState(false);
+
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   // Giữ bản tham chiếu users mới nhất để callback mở-profile-theo-tên ổn định
   // (không tạo lại khi presence cập nhật), nhờ đó React.memo của MessageBubble giữ hiệu lực.
@@ -126,6 +130,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const messageEndRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
 
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const isPrependingRef = useRef(false);
+
+  const oldestMessageId = (() => {
+    const positiveIds = messages.filter(m => m.id > 0).map(m => m.id);
+    return positiveIds.length > 0 ? Math.min(...positiveIds) : null;
+  })();
+
   // 1. Tải danh sách phòng từ API
   const fetchRooms = async () => {
     try {
@@ -159,9 +172,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   // 3. Tải lịch sử tin nhắn phòng chat (mở phòng = đã đọc tới tin cuối)
   const fetchMessageHistory = async (roomId: number) => {
     try {
-      const response = await api.get(`/rooms/${roomId}/messages?limit=50&offset=0`);
-      setMessages(response.data);
+      setHasMore(true);
+      setLoadingOlder(false);
+      isPrependingRef.current = false;
+      const response = await api.get(`/rooms/${roomId}/messages?limit=50`);
       const data = response.data as Message[];
+      setMessages(data);
+      setHasMore(data.length >= 50);
       const lastId = data.length ? data[data.length - 1].id : 0;
       markConversationRead('room', roomId, lastId, roomId);
     } catch (err) {
@@ -173,13 +190,70 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   //    recipientUserId là khóa badge ở sidebar (DM key theo người đối thoại).
   const fetchPrivateMessageHistory = async (chatId: number, recipientUserId?: number) => {
     try {
-      const response = await api.get(`/users/private-chat/${chatId}/messages?limit=50&offset=0`);
-      setMessages(response.data);
+      setHasMore(true);
+      setLoadingOlder(false);
+      isPrependingRef.current = false;
+      const response = await api.get(`/users/private-chat/${chatId}/messages?limit=50`);
       const data = response.data as Message[];
+      setMessages(data);
+      setHasMore(data.length >= 50);
       const lastId = data.length ? data[data.length - 1].id : 0;
       markConversationRead('private', chatId, lastId, recipientUserId);
     } catch (err) {
       message.error('Không thể lấy lịch sử tin nhắn riêng tư.');
+    }
+  };
+
+  const loadOlderMessages = async () => {
+    if (loadingOlder || !hasMore || !oldestMessageId) return;
+
+    setLoadingOlder(true);
+    isPrependingRef.current = true;
+
+    const container = messagesContainerRef.current;
+    const prevScrollHeight = container ? container.scrollHeight : 0;
+    const prevScrollTop = container ? container.scrollTop : 0;
+
+    try {
+      let response;
+      if (activeChatType === 'room') {
+        if (activeRoomId === null) return;
+        response = await api.get(`/rooms/${activeRoomId}/messages?limit=50&beforeId=${oldestMessageId}`);
+      } else {
+        if (activePrivateChatId === null) return;
+        response = await api.get(`/users/private-chat/${activePrivateChatId}/messages?limit=50&beforeId=${oldestMessageId}`);
+      }
+
+      const newMessages = response.data as Message[];
+
+      flushSync(() => {
+        setMessages((prev) => {
+          const merged = [...newMessages, ...prev];
+          const unique: Message[] = [];
+          const seen = new Set<number>();
+          for (const m of merged) {
+            if (!seen.has(m.id)) {
+              seen.add(m.id);
+              unique.push(m);
+            }
+          }
+          return unique;
+        });
+      });
+
+      if (container) {
+        const newScrollHeight = container.scrollHeight;
+        container.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+      }
+
+      if (newMessages.length < 50) {
+        setHasMore(false);
+      }
+    } catch (err) {
+      message.error('Không thể tải tin nhắn cũ hơn.');
+    } finally {
+      setLoadingOlder(false);
+      isPrependingRef.current = false;
     }
   };
 
@@ -413,8 +487,34 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   useEffect(() => {
     const isNewMessage = messages.length !== prevMessageCountRef.current;
     prevMessageCountRef.current = messages.length;
-    messageEndRef.current?.scrollIntoView({ behavior: isNewMessage ? 'smooth' : 'auto' });
+    if (!isPrependingRef.current) {
+      messageEndRef.current?.scrollIntoView({ behavior: isNewMessage ? 'smooth' : 'auto' });
+    }
   }, [messages]);
+
+  // Thiết lập Intersection Observer cho phân trang cuộn vô hạn lên đầu
+  useEffect(() => {
+    if (!hasMore || loadingOlder) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadOlderMessages();
+        }
+      },
+      {
+        root: messagesContainerRef.current,
+        rootMargin: '100px 0px 0px 0px',
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loadingOlder, oldestMessageId, activeRoomId, activePrivateChatId, activeChatType]);
 
   // Tổng unread → tiêu đề tab "(N) Nexivra Chat" để thấy khi tab ở nền.
   useEffect(() => {
@@ -597,7 +697,27 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         </div>
 
         {/* Message Area */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: 'var(--bg-canvas)' }}>
+        <div ref={messagesContainerRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: 'var(--bg-canvas)' }}>
+          {messages.length > 0 && (
+            <>
+              {hasMore && (
+                <div ref={sentinelRef} style={{ height: '5px', margin: '-5px 0' }} />
+              )}
+              {hasMore && (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
+                  <Button type="link" loading={loadingOlder} onClick={loadOlderMessages} style={{ color: 'var(--primary)' }}>
+                    Tải tin nhắn cũ hơn
+                  </Button>
+                </div>
+              )}
+              {!hasMore && (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px 0', fontSize: '12px' }}>
+                  Đầu hội thoại
+                </div>
+              )}
+            </>
+          )}
+
           {messages.length === 0 ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '14px' }}>
               Chưa có tin nhắn — hãy bắt đầu trò chuyện 👋

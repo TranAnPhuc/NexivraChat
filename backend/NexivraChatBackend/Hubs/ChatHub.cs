@@ -124,7 +124,7 @@ namespace NexivraChatBackend.Hubs
                 }
 
                 // Lấy 10 tin nhắn gần nhất làm ngữ cảnh hội thoại
-                var recentMessages = await _messageRepository.GetMessagesByRoom(roomId, 10, 0);
+                var recentMessages = await _messageRepository.GetMessagesByRoom(roomId, 10, null);
                 var conversationContext = new StringBuilder();
                 foreach (var msg in recentMessages)
                 {
