@@ -27,8 +27,12 @@
 - [x] GĐ5.2 Reply/Quote — spec: `roadmap-foundation.md` mục GĐ5.2.
 - [x] GĐ5.3 Sửa/Xóa tin nhắn — spec: `roadmap-foundation.md` mục GĐ5.3.
 - [x] GĐ5.4 @mention nhắc tên — spec: `roadmap-foundation.md` mục GĐ5.4.
-- [ ] GĐ5.4-test Thêm test `GetUnreadMentionRoomIds` (đóng nốt kỷ luật test). **(làm ngay)**
+- [x] GĐ5.4-test Thêm test `GetUnreadMentionRoomIds` (đóng nốt kỷ luật test).
 - [x] GĐ5.5 Gửi ảnh/file — spec: `roadmap-foundation.md` mục GĐ5.5 (kèm threat-model).
+
+## Hardening sau GĐ5.5 (Claude review, 2026-06-28)
+- [x] #C Kiểm soát truy cập file đính kèm (serve qua `/api/files` có auth + verify participant; +fix #E webp inline) — spec: `roadmap-foundation.md` mục "Hardening #C".
+- [ ] #D Check magic-bytes khi upload (content-type giả được) — residual thấp nhờ nosniff, defer.
 
 ## Defer từ GĐ5.5 (Threat-Model & File Cleanup)
 - [ ] Rate-limit upload theo user ID (chống spam đĩa).
