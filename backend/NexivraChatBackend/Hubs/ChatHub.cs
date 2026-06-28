@@ -250,6 +250,8 @@ namespace NexivraChatBackend.Hubs
                 // ReadUpdate keyed theo người đối thoại để khớp badge sidebar.
                 var otherUserId = chat.User1Id == me ? chat.User2Id : chat.User1Id;
                 await Clients.User(meStr).SendAsync("ReadUpdate", new { roomId = (int?)null, privateChatUserId = (int?)otherUserId });
+                // Gửi thông báo "SeenUpdate" tới người gửi để cập nhật trạng thái "Đã xem" thời gian thực.
+                await Clients.User(otherUserId.ToString()).SendAsync("SeenUpdate", new { privateChatUserId = me, lastReadMessageId });
             }
             else
             {

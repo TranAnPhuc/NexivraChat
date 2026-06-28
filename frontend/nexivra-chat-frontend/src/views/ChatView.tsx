@@ -56,6 +56,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   // Chỉ mount ProfileView (lazy chunk) sau lần đầu mở hồ sơ; giữ mount để Modal có animation đóng/mở.
   const [profileEverOpened, setProfileEverOpened] = useState(false);
+  const [partnerLastReadId, setPartnerLastReadId] = useState<number>(0);
 
   const [hasMore, setHasMore] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -177,6 +178,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       setHasMore(true);
       setLoadingOlder(false);
       isPrependingRef.current = false;
+      setPartnerLastReadId(0);
       const response = await api.get(`/rooms/${roomId}/messages?limit=50`);
       const data = response.data as Message[];
       setMessages(data);
@@ -199,6 +201,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       const data = response.data as Message[];
       setMessages(data);
       setHasMore(data.length >= 50);
+
+      const partnerReadHeader = response.headers['x-partner-last-read-id'];
+      if (partnerReadHeader) {
+        setPartnerLastReadId(parseInt(partnerReadHeader, 10) || 0);
+      } else {
+        setPartnerLastReadId(0);
+      }
+
       const lastId = data.length ? data[data.length - 1].id : 0;
       markConversationRead('private', chatId, lastId, recipientUserId);
     } catch (err) {
@@ -377,6 +387,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       });
     });
 
+    // Lắng nghe trạng thái "Đã xem" từ đối phương trong DM.
+    conn.on('SeenUpdate', (payload: { privateChatUserId: number; lastReadMessageId: number }) => {
+      if (activeChatTypeRef.current === 'private' && activeRecipientIdRef.current === payload.privateChatUserId) {
+        setPartnerLastReadId(payload.lastReadMessageId);
+      }
+    });
+
     // Lắng nghe stream chữ từ AI Copilot
     conn.on('ReceiveAiToken', (tempId: number, tokenStr: string) => {
       if (activeChatTypeRef.current === 'room') {
@@ -527,6 +544,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       conn.off('TypingUpdate');
       conn.off('UnreadUpdate');
       conn.off('ReadUpdate');
+      conn.off('SeenUpdate');
       prevRoomRef.current = null;
       conn.stop().catch(() => {});
     };
@@ -775,18 +793,34 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               Chưa có tin nhắn — hãy bắt đầu trò chuyện 👋
             </div>
           ) : (
-            messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                msg={msg}
-                currentUsername={username}
-                translation={translations[msg.id]}
-                isTranslating={!!translatingIds[msg.id]}
-                onTranslate={handleTranslateMessage}
-                onHideTranslation={handleHideTranslation}
-                onOpenSenderProfile={handleOpenSenderProfile}
-              />
-            ))
+            (() => {
+              let latestMyId: number | null = null;
+              if (activeChatType === 'private') {
+                for (let i = messages.length - 1; i >= 0; i--) {
+                  if (messages[i].senderName === username) {
+                    latestMyId = messages[i].id;
+                    break;
+                  }
+                }
+              }
+              return messages.map((msg) => {
+                const isLatestMy = msg.id === latestMyId;
+                const receiptStatus = isLatestMy ? (msg.id <= partnerLastReadId ? 'seen' : 'sent') : undefined;
+                return (
+                  <MessageBubble
+                    key={msg.id}
+                    msg={msg}
+                    currentUsername={username}
+                    translation={translations[msg.id]}
+                    isTranslating={!!translatingIds[msg.id]}
+                    receiptStatus={receiptStatus}
+                    onTranslate={handleTranslateMessage}
+                    onHideTranslation={handleHideTranslation}
+                    onOpenSenderProfile={handleOpenSenderProfile}
+                  />
+                );
+              });
+            })()
           )}
           {activeChatType === 'room' && typingUsers.length > 0 && (
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>

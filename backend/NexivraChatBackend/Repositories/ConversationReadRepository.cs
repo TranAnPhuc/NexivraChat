@@ -103,5 +103,20 @@ namespace NexivraChatBackend.Repositories
                 await connection.ExecuteAsync(query, new { userId, privateChatId, lastReadMessageId, now = DateTime.Now });
             }
         }
+
+        public async Task<int> GetPartnerLastReadMessageId(int userId, int partnerUserId)
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                var query = @"
+                    SELECT COALESCE(cr.last_read_message_id, 0)
+                    FROM private_chats pc
+                    LEFT JOIN conversation_reads cr
+                      ON cr.user_id = @partnerUserId AND cr.private_chat_id = pc.id
+                    WHERE (pc.user1_id = @userId AND pc.user2_id = @partnerUserId)
+                       OR (pc.user1_id = @partnerUserId AND pc.user2_id = @userId);";
+                return await connection.ExecuteScalarAsync<int>(query, new { userId, partnerUserId });
+            }
+        }
     }
 }

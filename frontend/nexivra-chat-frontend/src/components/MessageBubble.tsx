@@ -7,6 +7,7 @@ interface MessageBubbleProps {
   currentUsername: string;
   translation: string | undefined;
   isTranslating: boolean;
+  receiptStatus?: 'sent' | 'seen';
   onTranslate: (msgId: number, text: string) => void;
   onHideTranslation: (msgId: number) => void;
   onOpenSenderProfile: (senderName: string) => void;
@@ -17,6 +18,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   currentUsername,
   translation,
   isTranslating,
+  receiptStatus,
   onTranslate,
   onHideTranslation,
   onOpenSenderProfile,
@@ -56,6 +58,19 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           msg.content
         )}
       </div>
+      {receiptStatus && (
+        <div style={{
+          fontSize: '11px',
+          marginTop: '3px',
+          color: receiptStatus === 'seen' ? 'var(--primary)' : 'var(--text-muted)',
+          fontWeight: receiptStatus === 'seen' ? 600 : 400,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '2px',
+        }}>
+          {receiptStatus === 'seen' ? '✓✓ Đã xem' : '✓ Đã gửi'}
+        </div>
+      )}
       {!isMe && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '11px' }}>
           {isTranslating ? (

@@ -111,6 +111,11 @@ namespace NexivraChatBackend.Controllers
             }
 
             var messages = await _messageRepository.GetMessagesByPrivateChat(id, limit, beforeId, afterId);
+
+            var partnerUserId = chat.User1Id == currentUserId ? chat.User2Id : chat.User1Id;
+            var partnerLastReadId = await _conversationReadRepository.GetPartnerLastReadMessageId(currentUserId, partnerUserId);
+            Response.Headers.Append("X-Partner-Last-Read-Id", partnerLastReadId.ToString());
+
             return Ok(messages);
         }
     }
