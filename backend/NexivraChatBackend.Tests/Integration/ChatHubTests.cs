@@ -191,5 +191,91 @@ namespace NexivraChatBackend.Tests.Integration
             await connectionB.StopAsync();
             await connectionB.DisposeAsync();
         }
+
+        [Fact]
+        public async Task ToggleReaction_NonParticipantDm_ThrowsHubException()
+        {
+            // Arrange
+            var userA = new User { Username = "UserA", PasswordHash = "hash" };
+            var userB = new User { Username = "UserB", PasswordHash = "hash" };
+            var userC = new User { Username = "UserC", PasswordHash = "hash" };
+            await _userRepository.Create(userA);
+            await _userRepository.Create(userB);
+            await _userRepository.Create(userC);
+
+            var dm = await _privateChatRepository.GetOrCreate(userA.Id, userB.Id);
+            var msg = new Message { PrivateChatId = dm.Id, SenderId = userA.Id, SenderName = userA.Username, Content = "Private DM", CreatedAt = DateTime.UtcNow };
+            await _messageRepository.SaveNewMessage(msg);
+
+            var tokenC = GenerateToken(userC);
+            var connectionC = CreateHubConnection(tokenC);
+            await connectionC.StartAsync();
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<HubException>(async () =>
+            {
+                await connectionC.InvokeAsync("ToggleReaction", msg.Id, "👍");
+            });
+            Assert.Contains("Bạn không có quyền với hội thoại này.", ex.Message);
+
+            await connectionC.StopAsync();
+            await connectionC.DisposeAsync();
+        }
+
+        [Fact]
+        public async Task EditMessage_NonOwner_ThrowsHubException()
+        {
+            // Arrange
+            var userA = new User { Username = "UserA", PasswordHash = "hash" };
+            var userB = new User { Username = "UserB", PasswordHash = "hash" };
+            await _userRepository.Create(userA);
+            await _userRepository.Create(userB);
+
+            var dm = await _privateChatRepository.GetOrCreate(userA.Id, userB.Id);
+            var msg = new Message { PrivateChatId = dm.Id, SenderId = userA.Id, SenderName = userA.Username, Content = "Original DM", CreatedAt = DateTime.UtcNow };
+            await _messageRepository.SaveNewMessage(msg);
+
+            var tokenB = GenerateToken(userB);
+            var connectionB = CreateHubConnection(tokenB);
+            await connectionB.StartAsync();
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<HubException>(async () =>
+            {
+                await connectionB.InvokeAsync("EditMessage", msg.Id, "Hacked by B");
+            });
+            Assert.Contains("Không có quyền hoặc tin không tồn tại.", ex.Message);
+
+            await connectionB.StopAsync();
+            await connectionB.DisposeAsync();
+        }
+
+        [Fact]
+        public async Task DeleteMessage_NonOwner_ThrowsHubException()
+        {
+            // Arrange
+            var userA = new User { Username = "UserA", PasswordHash = "hash" };
+            var userB = new User { Username = "UserB", PasswordHash = "hash" };
+            await _userRepository.Create(userA);
+            await _userRepository.Create(userB);
+
+            var dm = await _privateChatRepository.GetOrCreate(userA.Id, userB.Id);
+            var msg = new Message { PrivateChatId = dm.Id, SenderId = userA.Id, SenderName = userA.Username, Content = "Original DM", CreatedAt = DateTime.UtcNow };
+            await _messageRepository.SaveNewMessage(msg);
+
+            var tokenB = GenerateToken(userB);
+            var connectionB = CreateHubConnection(tokenB);
+            await connectionB.StartAsync();
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<HubException>(async () =>
+            {
+                await connectionB.InvokeAsync("DeleteMessage", msg.Id);
+            });
+            Assert.Contains("Không có quyền hoặc tin không tồn tại.", ex.Message);
+
+            await connectionB.StopAsync();
+            await connectionB.DisposeAsync();
+        }
     }
 }

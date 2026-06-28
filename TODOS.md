@@ -16,7 +16,7 @@
 - [ ] #2 Receipts dùng `senderName === username` (`ChatView.tsx:800`) thay vì `senderId` (4.4) — đổi khi tiện (cần userId của mình ở frontend).
 - [ ] #3 Xóa `MessageRepository.GetOldMessages` (dead code, giờ còn thêm sender_id vào).
 - [x] #4 Dedupe resync dùng `findIndex` trong `filter` (O(n²)) → dùng `Set` như `loadOlderMessages`.
-- [ ] Chạy `dotnet test` với Docker bật để xác nhận 13 test integration xanh.
+- [x] **Checkpoint test 4.2→5.3** — spec: `roadmap-foundation.md` mục "Checkpoint Test". Phủ ReactionRepository, Edit/SoftDelete (authz), reply snapshot, blank tin đã xóa, keyset, hub authz. Rồi `dotnet test` (Docker) xanh.
 
 ## Polish từ review GĐ5.1 (Claude, 2026-06-28)
 - [x] #A Reactions thiếu kiểm tra participant — `ReactionsController.GetReactions` + Hub `ToggleReaction` cho DM.
