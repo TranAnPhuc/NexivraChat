@@ -25,6 +25,9 @@ export interface Message {
   content: string;
   createdAt: string;
   isAi: boolean;
+  replyToId?: number;
+  replyToSenderName?: string;
+  replyToContent?: string;
 }
 
 export interface ReactionSummary {
@@ -65,6 +68,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [profileEverOpened, setProfileEverOpened] = useState(false);
   const [partnerLastReadId, setPartnerLastReadId] = useState<number>(0);
   const [reactions, setReactions] = useState<Record<number, ReactionSummary[]>>({});
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   const currentUserId = useMemo(() => {
     try {
@@ -172,6 +176,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     if (conn && conn.state === 'Connected') {
       conn.invoke('ToggleReaction', messageId, emoji).catch(() => {});
     }
+  }, []);
+
+  const handleReply = useCallback((msg: Message) => {
+    setReplyingTo(msg);
   }, []);
 
   const messageEndRef = useRef<HTMLDivElement>(null);
@@ -333,6 +341,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     setTypingUsers([]);
     setTranslations({});
     setTranslatingIds({});
+    setReplyingTo(null);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     isTypingRef.current = false;
 
@@ -746,12 +755,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     if (!text.trim() || !connection) return;
 
     try {
+      const replyToId = replyingTo?.id;
       if (activeChatType === 'room') {
         if (activeRoomId === null) return;
-        await connection.invoke('SendMessage', activeRoomId, text.trim());
+        await connection.invoke('SendMessage', activeRoomId, text.trim(), replyToId);
       } else {
         if (activePrivateChatId === null || !activeRecipient) return;
-        await connection.invoke('SendPrivateMessage', activeRecipient.id, text.trim());
+        await connection.invoke('SendPrivateMessage', activeRecipient.id, text.trim(), replyToId);
       }
 
       if (isTypingRef.current) {
@@ -762,6 +772,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       if (textToSend === undefined) {
         setInputText('');
       }
+      setReplyingTo(null);
     } catch (err) {
       message.error('Không thể gửi tin nhắn.');
     }
@@ -945,6 +956,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
                     onHideTranslation={handleHideTranslation}
                     onOpenSenderProfile={handleOpenSenderProfile}
                     onToggleReaction={handleToggleReaction}
+                    onReply={handleReply}
                   />
                 );
               });
@@ -959,16 +971,27 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         </div>
 
         {/* Input Area */}
-        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', gap: '10px' }}>
-          <Input
-            value={inputText}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onPressEnter={() => handleSendMessage()}
-            placeholder={activeChatType === 'room' ? "Nhập tin nhắn… (gõ @copilot để hỏi AI)" : "Nhập tin nhắn..."}
-          />
-          <Button type="primary" icon={<SendOutlined />} onClick={() => handleSendMessage()} style={{ fontWeight: 500 }}>
-            Gửi
-          </Button>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {replyingTo && (
+            <div style={{ padding: '6px 12px', backgroundColor: 'var(--bg-elevated)', borderLeft: '3px solid #0D9488', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '8px' }}>
+                <span style={{ fontWeight: 600, color: '#0D9488' }}>Đang trả lời @{replyingTo.senderName}: </span>
+                <span style={{ color: 'var(--text-secondary)' }}>{replyingTo.content.substring(0, 80)}</span>
+              </div>
+              <Button type="text" size="small" onClick={() => setReplyingTo(null)} style={{ color: 'var(--text-muted)' }}>✕</Button>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Input
+              value={inputText}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onPressEnter={() => handleSendMessage()}
+              placeholder={activeChatType === 'room' ? "Nhập tin nhắn… (gõ @copilot để hỏi AI)" : "Nhập tin nhắn..."}
+            />
+            <Button type="primary" icon={<SendOutlined />} onClick={() => handleSendMessage()} style={{ fontWeight: 500 }}>
+              Gửi
+            </Button>
+          </div>
         </div>
       </div>
 

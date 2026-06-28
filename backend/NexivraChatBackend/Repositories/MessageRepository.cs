@@ -17,11 +17,32 @@ namespace NexivraChatBackend.Repositories
             _context = context;
         }
 
+        public async Task<Message?> GetById(int id)
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                var query = @"
+                    SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
+                           m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                    FROM messages m
+                    LEFT JOIN messages r ON m.reply_to_id = r.id
+                    WHERE m.id = @id;";
+                return await connection.QueryFirstOrDefaultAsync<Message>(query, new { id });
+            }
+        }
+
         public async Task<List<Message>> GetOldMessages(int limit, int offset)
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
+                var query = @"
+                    SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
+                           m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                    FROM messages m
+                    LEFT JOIN messages r ON m.reply_to_id = r.id
+                    ORDER BY m.created_at DESC LIMIT @limit OFFSET @offset;";
                 return (await connection.QueryAsync<Message>(query, new { limit, offset })).ToList();
             }
         }
@@ -32,12 +53,24 @@ namespace NexivraChatBackend.Repositories
             {
                 if (afterId.HasValue)
                 {
-                    var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE room_id = @roomId AND id > @afterId ORDER BY id ASC LIMIT @limit;";
+                    var query = @"
+                        SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
+                               m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                        FROM messages m
+                        LEFT JOIN messages r ON m.reply_to_id = r.id
+                        WHERE m.room_id = @roomId AND m.id > @afterId ORDER BY m.id ASC LIMIT @limit;";
                     return (await connection.QueryAsync<Message>(query, new { roomId, limit, afterId })).ToList();
                 }
                 else
                 {
-                    var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE room_id = @roomId AND (@beforeId IS NULL OR id < @beforeId) ORDER BY id DESC LIMIT @limit;";
+                    var query = @"
+                        SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
+                               m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                        FROM messages m
+                        LEFT JOIN messages r ON m.reply_to_id = r.id
+                        WHERE m.room_id = @roomId AND (@beforeId IS NULL OR m.id < @beforeId) ORDER BY m.id DESC LIMIT @limit;";
                     var result = (await connection.QueryAsync<Message>(query, new { roomId, limit, beforeId })).ToList();
                     result.Reverse(); // Trả về theo thứ tự thời gian tăng dần
                     return result;
@@ -51,12 +84,24 @@ namespace NexivraChatBackend.Repositories
             {
                 if (afterId.HasValue)
                 {
-                    var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE private_chat_id = @privateChatId AND id > @afterId ORDER BY id ASC LIMIT @limit;";
+                    var query = @"
+                        SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
+                               m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                        FROM messages m
+                        LEFT JOIN messages r ON m.reply_to_id = r.id
+                        WHERE m.private_chat_id = @privateChatId AND m.id > @afterId ORDER BY m.id ASC LIMIT @limit;";
                     return (await connection.QueryAsync<Message>(query, new { privateChatId, limit, afterId })).ToList();
                 }
                 else
                 {
-                    var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE private_chat_id = @privateChatId AND (@beforeId IS NULL OR id < @beforeId) ORDER BY id DESC LIMIT @limit;";
+                    var query = @"
+                        SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
+                               m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                        FROM messages m
+                        LEFT JOIN messages r ON m.reply_to_id = r.id
+                        WHERE m.private_chat_id = @privateChatId AND (@beforeId IS NULL OR m.id < @beforeId) ORDER BY m.id DESC LIMIT @limit;";
                     var result = (await connection.QueryAsync<Message>(query, new { privateChatId, limit, beforeId })).ToList();
                     result.Reverse(); // Trả về theo thứ tự thời gian tăng dần
                     return result;
@@ -69,8 +114,8 @@ namespace NexivraChatBackend.Repositories
             using (var connection = _context.CreateConnection())
             {
                 var query = @"
-                    INSERT INTO messages (room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai)
-                    VALUES (@room_id, @private_chat_id, @sender_id, @sender_name, @content, @created_at, @is_ai)
+                    INSERT INTO messages (room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai, reply_to_id)
+                    VALUES (@room_id, @private_chat_id, @sender_id, @sender_name, @content, @created_at, @is_ai, @reply_to_id)
                     RETURNING id;";
 
                 var id = await connection.ExecuteScalarAsync<int>(query, new
@@ -81,7 +126,8 @@ namespace NexivraChatBackend.Repositories
                     sender_name = message.SenderName,
                     content = message.Content,
                     created_at = message.CreatedAt == default ? DateTime.Now : message.CreatedAt,
-                    is_ai = message.IsAi
+                    is_ai = message.IsAi,
+                    reply_to_id = message.ReplyToId
                 });
                 message.Id = id;
             }
@@ -91,7 +137,13 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE sender_name = @senderName AND is_ai = false ORDER BY created_at DESC LIMIT @limit";
+                var query = @"
+                    SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
+                           m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                    FROM messages m
+                    LEFT JOIN messages r ON m.reply_to_id = r.id
+                    WHERE m.sender_name = @senderName AND m.is_ai = false ORDER BY m.created_at DESC LIMIT @limit;";
                 return (await connection.QueryAsync<Message>(query, new { senderName, limit })).ToList();
             }
         }

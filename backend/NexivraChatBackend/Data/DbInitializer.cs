@@ -95,14 +95,15 @@ namespace NexivraChatBackend.Data
                 connection.Execute(createConversationReadsTable);
                 connection.Execute(createMessageReactionsTable);
 
-                // Migration idempotent bổ sung sender_id và backfill dữ liệu cho bảng messages
-                var migrateSenderId = @"
+                // Migration idempotent bổ sung sender_id và reply_to_id cho bảng messages
+                var migrateMessageColumns = @"
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_id INT NULL REFERENCES users(id) ON DELETE SET NULL;
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INT NULL REFERENCES messages(id) ON DELETE SET NULL;
                     UPDATE messages m
                     SET sender_id = u.id
                     FROM users u
                     WHERE m.sender_id IS NULL AND m.is_ai = false AND m.sender_name = u.username;";
-                connection.Execute(migrateSenderId);
+                connection.Execute(migrateMessageColumns);
 
                 // 7. Tạo index tối ưu truy vấn lịch sử tin nhắn (idempotent)
                 var createMessageIndexes = @"
@@ -114,6 +115,8 @@ namespace NexivraChatBackend.Data
                         ON messages (sender_name);
                     CREATE INDEX IF NOT EXISTS idx_messages_sender_id
                         ON messages (sender_id);
+                    CREATE INDEX IF NOT EXISTS idx_messages_reply_to
+                        ON messages (reply_to_id);
                     CREATE INDEX IF NOT EXISTS idx_reactions_message
                         ON message_reactions (message_id);
                     -- Phục vụ truy vấn unread (id > last_read), không phải theo created_at

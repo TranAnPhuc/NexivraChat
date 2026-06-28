@@ -24,6 +24,7 @@
 
 ## GĐ5 — tính năng giống Zalo/Messenger/Telegram
 - [x] GĐ5.1 Reactions (emoji) — spec: `docs/superpowers/plans/roadmap-foundation.md` mục GĐ5.1.
+- [x] GĐ5.2 Reply/Quote — spec: `roadmap-foundation.md` mục GĐ5.2.
 
 ## Defer từ review unread-badges
 - [ ] Web Push / OS notification — chống bỏ lỡ khi app đóng (CEO #3). Giá trị cao, follow-up lớn.

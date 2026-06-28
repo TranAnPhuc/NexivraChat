@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RobotOutlined, TranslationOutlined } from '@ant-design/icons';
+import { RobotOutlined, TranslationOutlined, RollbackOutlined } from '@ant-design/icons';
 import type { Message, ReactionSummary } from '../views/ChatView';
 
 interface MessageBubbleProps {
@@ -13,6 +13,7 @@ interface MessageBubbleProps {
   onHideTranslation: (msgId: number) => void;
   onOpenSenderProfile: (senderName: string) => void;
   onToggleReaction: (msgId: number, emoji: string) => void;
+  onReply: (msg: Message) => void;
 }
 
 const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
@@ -26,13 +27,14 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   onHideTranslation,
   onOpenSenderProfile,
   onToggleReaction,
+  onReply,
 }) => {
   const isMe = msg.senderName === currentUsername;
   const isAi = msg.isAi;
   const [showPicker, setShowPicker] = useState(false);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '74%', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+    <div id={`msg-${msg.id}`} style={{ display: 'flex', flexDirection: 'column', alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '74%', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
       <div style={{ fontSize: '11px', color: isAi ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
         {isAi && <RobotOutlined />}
         <span
@@ -96,6 +98,33 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           lineHeight: '1.5',
           whiteSpace: 'pre-wrap',
         }}>
+          {msg.replyToId && (
+            <div
+              onClick={() => {
+                const el = document.getElementById(`msg-${msg.replyToId}`);
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+              }}
+              style={{
+                marginBottom: '6px',
+                padding: '4px 8px',
+                backgroundColor: isMe ? 'rgba(255,255,255,0.15)' : 'rgba(13, 148, 136, 0.1)',
+                borderLeft: '3px solid #0D9488',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+              title="Nhấp để chuyển đến tin nhắn gốc"
+            >
+              <div style={{ fontWeight: 600, color: '#0D9488' }}>
+                {msg.replyToSenderName || 'Tin nhắn'}
+              </div>
+              <div style={{ color: isMe ? 'var(--bubble-me-text)' : 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.9 }}>
+                {msg.replyToContent || 'Tin nhắn đã bị xóa'}
+              </div>
+            </div>
+          )}
           {msg.content === '' && isAi ? (
             <span className="copilot-loading">Trợ lý AI đang phản hồi…</span>
           ) : (
@@ -145,27 +174,39 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           {receiptStatus === 'seen' ? '✓✓ Đã xem' : '✓ Đã gửi'}
         </div>
       )}
-      {!isMe && (
+
+      {msg.id > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '11px' }}>
-          {isTranslating ? (
-            <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>Đang dịch...</span>
-          ) : translation ? (
-            <button
-              onClick={() => onHideTranslation(msg.id)}
-              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }}
-            >
-              Ẩn bản dịch
-            </button>
-          ) : (
-            <button
-              onClick={() => onTranslate(msg.id, msg.content)}
-              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-            >
-              <TranslationOutlined /> Dịch
-            </button>
+          <button
+            onClick={() => onReply(msg)}
+            style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+          >
+            <RollbackOutlined /> Trả lời
+          </button>
+          {!isMe && (
+            <>
+              {isTranslating ? (
+                <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>Đang dịch...</span>
+              ) : translation ? (
+                <button
+                  onClick={() => onHideTranslation(msg.id)}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Ẩn bản dịch
+                </button>
+              ) : (
+                <button
+                  onClick={() => onTranslate(msg.id, msg.content)}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                >
+                  <TranslationOutlined /> Dịch
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
+
       {translation && (
         <div style={{ marginTop: '6px', padding: '8px 12px', backgroundColor: 'var(--bg-elevated)', borderLeft: '3px solid var(--primary)', borderRadius: '4px 12px 12px 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4', maxWidth: '100%', animation: 'fadeIn 0.2s ease-out' }}>
           <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', fontWeight: 600 }}>

@@ -94,7 +94,7 @@ namespace NexivraChatBackend.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendMessage(int roomId, string content)
+        public async Task SendMessage(int roomId, string content, int? replyToId = null)
         {
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
             var roomString = roomId.ToString();
@@ -105,6 +105,8 @@ namespace NexivraChatBackend.Hubs
                 senderId = parsedSenderId;
             }
 
+            int? validReplyToId = (replyToId.HasValue && replyToId.Value > 0) ? replyToId.Value : null;
+
             // 1. Lưu tin nhắn người dùng gửi vào Database
             var userMessage = new Message
             {
@@ -113,15 +115,25 @@ namespace NexivraChatBackend.Hubs
                 SenderName = username,
                 Content = content,
                 CreatedAt = DateTime.Now,
-                IsAi = false
+                IsAi = false,
+                ReplyToId = validReplyToId
             };
             await _messageRepository.SaveNewMessage(userMessage);
+
+            if (validReplyToId.HasValue)
+            {
+                var orig = await _messageRepository.GetById(validReplyToId.Value);
+                if (orig != null)
+                {
+                    userMessage.ReplyToSenderName = orig.SenderName;
+                    userMessage.ReplyToContent = string.IsNullOrEmpty(orig.Content) ? "" : orig.Content.Substring(0, Math.Min(120, orig.Content.Length));
+                }
+            }
 
             // 2. Phát tin nhắn người dùng tới toàn phòng chat
             await Clients.Group(roomString).SendAsync("ReceiveMessage", userMessage);
 
-            // 2b. Tín hiệu unread nhẹ tới MỌI user (phòng công khai, group không tới được
-            //     người đang ở phòng khác). Client tự tăng badge nếu phòng này không active.
+            // 2b. Tín hiệu unread nhẹ tới MỌI user
             await Clients.All.SendAsync("UnreadUpdate", new { type = "room", id = roomId });
 
             // 3. Xử lý gọi trợ lý AI nếu tin nhắn bắt đầu bằng tag @copilot
@@ -193,7 +205,7 @@ namespace NexivraChatBackend.Hubs
             }
         }
 
-        public async Task SendPrivateMessage(int receiverId, string content)
+        public async Task SendPrivateMessage(int receiverId, string content, int? replyToId = null)
         {
             var senderIdStr = Context.UserIdentifier;
             if (string.IsNullOrEmpty(senderIdStr) || !int.TryParse(senderIdStr, out var senderId))
@@ -202,6 +214,7 @@ namespace NexivraChatBackend.Hubs
             }
 
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            int? validReplyToId = (replyToId.HasValue && replyToId.Value > 0) ? replyToId.Value : null;
 
             // 1. Lấy hoặc tạo phòng chat 1-1
             var privateChat = await _privateChatRepository.GetOrCreate(senderId, receiverId);
@@ -214,14 +227,24 @@ namespace NexivraChatBackend.Hubs
                 SenderName = username,
                 Content = content,
                 CreatedAt = DateTime.Now,
-                IsAi = false
+                IsAi = false,
+                ReplyToId = validReplyToId
             };
             await _messageRepository.SaveNewMessage(userMessage);
+
+            if (validReplyToId.HasValue)
+            {
+                var orig = await _messageRepository.GetById(validReplyToId.Value);
+                if (orig != null)
+                {
+                    userMessage.ReplyToSenderName = orig.SenderName;
+                    userMessage.ReplyToContent = string.IsNullOrEmpty(orig.Content) ? "" : orig.Content.Substring(0, Math.Min(120, orig.Content.Length));
+                }
+            }
 
             // 3. Phát tin nhắn riêng tư tới cả người gửi và người nhận
             await Clients.Users(senderId.ToString(), receiverId.ToString()).SendAsync("ReceivePrivateMessage", userMessage);
 
-            // 3b. Tín hiệu unread tới người nhận. id = NGƯỜI GỬI (đối thoại từ góc nhìn
             //     người nhận) để khớp badge keyed-by-user ở sidebar.
             await Clients.User(receiverId.ToString()).SendAsync("UnreadUpdate", new { type = "private", id = senderId });
         }
