@@ -14,7 +14,7 @@
 ## Polish từ review GĐ4 (Claude, 2026-06-28) — không chặn
 - [x] #1 Resync >50 tin: hiện chỉ kéo 1 lô 50 sau reconnect (`ChatView.tsx:471,495`) → lặp `afterId` tới khi lô <limit.
 - [ ] #2 Receipts dùng `senderName === username` (`ChatView.tsx:800`) thay vì `senderId` (4.4) — đổi khi tiện (cần userId của mình ở frontend).
-- [ ] #3 Xóa `MessageRepository.GetOldMessages` (dead code, giờ còn thêm sender_id vào).
+- [x] #3 Xóa `MessageRepository.GetOldMessages` (dead code, giờ còn thêm sender_id vào).
 - [x] #4 Dedupe resync dùng `findIndex` trong `filter` (O(n²)) → dùng `Set` như `loadOlderMessages`.
 - [x] **Checkpoint test 4.2→5.3** — spec: `roadmap-foundation.md` mục "Checkpoint Test". Phủ ReactionRepository, Edit/SoftDelete (authz), reply snapshot, blank tin đã xóa, keyset, hub authz. Rồi `dotnet test` (Docker) xanh.
 
@@ -35,7 +35,7 @@
 
 ## Dọn nợ kỹ thuật — đợt 1 (Claude review, 2026-06-28) — spec: `roadmap-foundation.md` mục "Dọn nợ kỹ thuật — đợt 1"
 - [ ] #2 Receipts so theo `senderId` thay vì `senderName` (`ChatView.tsx:1102`; giữ chỗ mở hồ sơ theo tên).
-- [ ] #3 Xóa `MessageRepository.GetOldMessages` (dead code, không caller).
+- [x] #3 Xóa `MessageRepository.GetOldMessages` (dead code, không caller).
 - [ ] #D Check magic-bytes khi upload (chống đổi đuôi giả định dạng).
 
 ## Defer từ GĐ5.5 (Threat-Model & File Cleanup)
@@ -50,5 +50,4 @@
 - [ ] Denormalized unread counter khi phòng đông — hiện chấp nhận COUNT scan, trần scale đã biết (CEO #6, Eng H3).
 
 ## Ghi chú kỹ thuật tồn (từ context.md)
-- [ ] `MessageRepository.GetOldMessages` là dead code — xóa khi tiện.
 - [ ] `TempMessageId` dùng `int`, lý thuyết underflow sau ~2 tỷ lần (không đáng kể).
