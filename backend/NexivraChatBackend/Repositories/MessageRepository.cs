@@ -23,8 +23,12 @@ namespace NexivraChatBackend.Repositories
             {
                 var query = @"
                     SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
-                           m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
-                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                           m.sender_name AS SenderName,
+                           CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
+                           m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                           m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
+                           CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                     FROM messages m
                     LEFT JOIN messages r ON m.reply_to_id = r.id
                     WHERE m.id = @id;";
@@ -38,8 +42,12 @@ namespace NexivraChatBackend.Repositories
             {
                 var query = @"
                     SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
-                           m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
-                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                           m.sender_name AS SenderName,
+                           CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
+                           m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                           m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
+                           CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                     FROM messages m
                     LEFT JOIN messages r ON m.reply_to_id = r.id
                     ORDER BY m.created_at DESC LIMIT @limit OFFSET @offset;";
@@ -55,8 +63,12 @@ namespace NexivraChatBackend.Repositories
                 {
                     var query = @"
                         SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
-                               m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
-                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                               m.sender_name AS SenderName,
+                               CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
+                               m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                               m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
+                               CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                         FROM messages m
                         LEFT JOIN messages r ON m.reply_to_id = r.id
                         WHERE m.room_id = @roomId AND m.id > @afterId ORDER BY m.id ASC LIMIT @limit;";
@@ -66,8 +78,12 @@ namespace NexivraChatBackend.Repositories
                 {
                     var query = @"
                         SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
-                               m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
-                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                               m.sender_name AS SenderName,
+                               CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
+                               m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                               m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
+                               CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                         FROM messages m
                         LEFT JOIN messages r ON m.reply_to_id = r.id
                         WHERE m.room_id = @roomId AND (@beforeId IS NULL OR m.id < @beforeId) ORDER BY m.id DESC LIMIT @limit;";
@@ -86,8 +102,12 @@ namespace NexivraChatBackend.Repositories
                 {
                     var query = @"
                         SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
-                               m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
-                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                               m.sender_name AS SenderName,
+                               CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
+                               m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                               m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
+                               CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                         FROM messages m
                         LEFT JOIN messages r ON m.reply_to_id = r.id
                         WHERE m.private_chat_id = @privateChatId AND m.id > @afterId ORDER BY m.id ASC LIMIT @limit;";
@@ -97,8 +117,12 @@ namespace NexivraChatBackend.Repositories
                 {
                     var query = @"
                         SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
-                               m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
-                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                               m.sender_name AS SenderName,
+                               CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
+                               m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                               m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                               m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
+                               CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                         FROM messages m
                         LEFT JOIN messages r ON m.reply_to_id = r.id
                         WHERE m.private_chat_id = @privateChatId AND (@beforeId IS NULL OR m.id < @beforeId) ORDER BY m.id DESC LIMIT @limit;";
@@ -133,14 +157,42 @@ namespace NexivraChatBackend.Repositories
             }
         }
 
+        public async Task<int> EditMessage(int messageId, int userId, string newContent)
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                var query = @"
+                    UPDATE messages
+                    SET content = @newContent, edited_at = NOW()
+                    WHERE id = @messageId AND sender_id = @userId AND deleted_at IS NULL;";
+                return await connection.ExecuteAsync(query, new { messageId, userId, newContent });
+            }
+        }
+
+        public async Task<int> SoftDeleteMessage(int messageId, int userId)
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                var query = @"
+                    UPDATE messages
+                    SET deleted_at = NOW()
+                    WHERE id = @messageId AND sender_id = @userId AND deleted_at IS NULL;";
+                return await connection.ExecuteAsync(query, new { messageId, userId });
+            }
+        }
+
         public async Task<List<Message>> GetLatestMessagesBySender(string senderName, int limit = 30)
         {
             using (var connection = _context.CreateConnection())
             {
                 var query = @"
                     SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
-                           m.sender_name AS SenderName, m.content AS Content, m.created_at AS CreatedAt, m.is_ai AS IsAi,
-                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName, LEFT(r.content, 120) AS ReplyToContent
+                           m.sender_name AS SenderName,
+                           CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
+                           m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                           m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
+                           CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                     FROM messages m
                     LEFT JOIN messages r ON m.reply_to_id = r.id
                     WHERE m.sender_name = @senderName AND m.is_ai = false ORDER BY m.created_at DESC LIMIT @limit;";

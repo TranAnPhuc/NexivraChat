@@ -95,10 +95,12 @@ namespace NexivraChatBackend.Data
                 connection.Execute(createConversationReadsTable);
                 connection.Execute(createMessageReactionsTable);
 
-                // Migration idempotent bổ sung sender_id và reply_to_id cho bảng messages
+                // Migration idempotent bổ sung sender_id, reply_to_id, edited_at, deleted_at cho bảng messages
                 var migrateMessageColumns = @"
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_id INT NULL REFERENCES users(id) ON DELETE SET NULL;
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INT NULL REFERENCES messages(id) ON DELETE SET NULL;
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP NULL;
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;
                     UPDATE messages m
                     SET sender_id = u.id
                     FROM users u

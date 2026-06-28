@@ -18,5 +18,7 @@ namespace NexivraChatBackend.Models
         public int? ReplyToId { get; set; }
         public string? ReplyToSenderName { get; set; }
         public string? ReplyToContent { get; set; }
+        public DateTime? EditedAt { get; set; }
+        public DateTime? DeletedAt { get; set; }
     }
 }

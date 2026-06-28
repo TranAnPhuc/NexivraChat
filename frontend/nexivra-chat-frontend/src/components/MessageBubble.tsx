@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { RobotOutlined, TranslationOutlined, RollbackOutlined } from '@ant-design/icons';
+import { RobotOutlined, TranslationOutlined, RollbackOutlined, EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { Input, Button, Modal } from 'antd';
 import type { Message, ReactionSummary } from '../views/ChatView';
 
 interface MessageBubbleProps {
@@ -14,6 +15,8 @@ interface MessageBubbleProps {
   onOpenSenderProfile: (senderName: string) => void;
   onToggleReaction: (msgId: number, emoji: string) => void;
   onReply: (msg: Message) => void;
+  onEdit: (msgId: number, newContent: string) => void;
+  onDelete: (msgId: number) => void;
 }
 
 const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
@@ -28,10 +31,33 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   onOpenSenderProfile,
   onToggleReaction,
   onReply,
+  onEdit,
+  onDelete,
 }) => {
   const isMe = msg.senderName === currentUsername;
   const isAi = msg.isAi;
+  const isDeleted = !!msg.deletedAt;
   const [showPicker, setShowPicker] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(msg.content);
+
+  const handleSaveEdit = () => {
+    if (editText.trim() && editText.trim() !== msg.content) {
+      onEdit(msg.id, editText.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleConfirmDelete = () => {
+    Modal.confirm({
+      title: 'Thu hồi tin nhắn?',
+      content: 'Bạn có chắc chắn muốn xóa tin nhắn này không? Tin nhắn đã xóa sẽ không thể khôi phục.',
+      okText: 'Thu hồi',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: () => onDelete(msg.id),
+    });
+  };
 
   return (
     <div id={`msg-${msg.id}`} style={{ display: 'flex', flexDirection: 'column', alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '74%', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
@@ -49,14 +75,17 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           {isAi ? 'Trợ lý AI' : msg.senderName}
         </span>
         <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
+        {msg.editedAt && !isDeleted && (
+          <span style={{ fontStyle: 'italic', fontSize: '10px', opacity: 0.8 }}>(đã sửa)</span>
+        )}
       </div>
 
       <div
         onMouseEnter={() => setShowPicker(true)}
         onMouseLeave={() => setShowPicker(false)}
-        style={{ position: 'relative' }}
+        style={{ position: 'relative', width: isEditing ? '100%' : 'auto' }}
       >
-        {showPicker && msg.id > 0 && (
+        {showPicker && msg.id > 0 && !isDeleted && !isEditing && (
           <div
             style={{
               position: 'absolute',
@@ -90,15 +119,16 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
         <div style={{
           padding: '9px 13px',
-          backgroundColor: isMe ? 'var(--bubble-me)' : isAi ? 'var(--bubble-ai-bg)' : 'var(--bubble-other)',
-          color: isMe ? 'var(--bubble-me-text)' : isAi ? 'var(--bubble-ai-text)' : 'var(--bubble-other-text)',
-          border: isAi ? '1px solid var(--bubble-ai-border)' : isMe ? 'none' : '1px solid var(--border)',
+          backgroundColor: isDeleted ? 'var(--bg-elevated)' : isMe ? 'var(--bubble-me)' : isAi ? 'var(--bubble-ai-bg)' : 'var(--bubble-other)',
+          color: isDeleted ? 'var(--text-muted)' : isMe ? 'var(--bubble-me-text)' : isAi ? 'var(--bubble-ai-text)' : 'var(--bubble-other-text)',
+          border: isDeleted ? '1px dashed var(--border)' : isAi ? '1px solid var(--bubble-ai-border)' : isMe ? 'none' : '1px solid var(--border)',
           borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
           fontSize: '14px',
           lineHeight: '1.5',
           whiteSpace: 'pre-wrap',
+          minWidth: isEditing ? '260px' : 'auto',
         }}>
-          {msg.replyToId && (
+          {msg.replyToId && !isDeleted && (
             <div
               onClick={() => {
                 const el = document.getElementById(`msg-${msg.replyToId}`);
@@ -125,7 +155,33 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
               </div>
             </div>
           )}
-          {msg.content === '' && isAi ? (
+
+          {isDeleted ? (
+            <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Tin đã bị xóa</span>
+          ) : isEditing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+              <label htmlFor={`edit-input-${msg.id}`} style={{ fontSize: '11px', fontWeight: 600, color: isMe ? 'var(--bubble-me-text)' : 'var(--text-secondary)' }}>
+                Chỉnh sửa tin nhắn:
+              </label>
+              <Input.TextArea
+                id={`edit-input-${msg.id}`}
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                autoSize={{ minRows: 1, maxRows: 4 }}
+                style={{ borderRadius: '6px', fontSize: '13px' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSaveEdit();
+                  }
+                }}
+              />
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                <Button size="small" icon={<CloseOutlined />} onClick={() => setIsEditing(false)}>Hủy</Button>
+                <Button size="small" type="primary" icon={<CheckOutlined />} onClick={handleSaveEdit}>Lưu</Button>
+              </div>
+            </div>
+          ) : msg.content === '' && isAi ? (
             <span className="copilot-loading">Trợ lý AI đang phản hồi…</span>
           ) : (
             msg.content
@@ -133,7 +189,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         </div>
       </div>
 
-      {reactions && reactions.length > 0 && (
+      {!isDeleted && reactions && reactions.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
           {reactions.map((r) => (
             <button
@@ -161,7 +217,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         </div>
       )}
 
-      {receiptStatus && (
+      {receiptStatus && !isDeleted && (
         <div style={{
           fontSize: '11px',
           marginTop: '3px',
@@ -175,14 +231,32 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         </div>
       )}
 
-      {msg.id > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '11px' }}>
+      {msg.id > 0 && !isDeleted && !isEditing && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px', fontSize: '11px' }}>
           <button
             onClick={() => onReply(msg)}
             style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
           >
             <RollbackOutlined /> Trả lời
           </button>
+
+          {isMe && !isAi && (
+            <>
+              <button
+                onClick={() => { setIsEditing(true); setEditText(msg.content); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+              >
+                <EditOutlined /> Sửa
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                style={{ background: 'none', border: 'none', padding: 0, color: '#ff4d4f', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+              >
+                <DeleteOutlined /> Xóa
+              </button>
+            </>
+          )}
+
           {!isMe && (
             <>
               {isTranslating ? (
@@ -207,7 +281,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         </div>
       )}
 
-      {translation && (
+      {translation && !isDeleted && (
         <div style={{ marginTop: '6px', padding: '8px 12px', backgroundColor: 'var(--bg-elevated)', borderLeft: '3px solid var(--primary)', borderRadius: '4px 12px 12px 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4', maxWidth: '100%', animation: 'fadeIn 0.2s ease-out' }}>
           <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', fontWeight: 600 }}>
             BẢN DỊCH

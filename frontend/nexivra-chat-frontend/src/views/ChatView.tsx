@@ -28,6 +28,8 @@ export interface Message {
   replyToId?: number;
   replyToSenderName?: string;
   replyToContent?: string;
+  editedAt?: string;
+  deletedAt?: string;
 }
 
 export interface ReactionSummary {
@@ -180,6 +182,24 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
 
   const handleReply = useCallback((msg: Message) => {
     setReplyingTo(msg);
+  }, []);
+
+  const handleEditMessage = useCallback((messageId: number, newContent: string) => {
+    const conn = connectionRef.current;
+    if (conn && conn.state === 'Connected') {
+      conn.invoke('EditMessage', messageId, newContent).catch((err: any) => {
+        message.error(err?.message || 'Không thể chỉnh sửa tin nhắn.');
+      });
+    }
+  }, []);
+
+  const handleDeleteMessage = useCallback((messageId: number) => {
+    const conn = connectionRef.current;
+    if (conn && conn.state === 'Connected') {
+      conn.invoke('DeleteMessage', messageId).catch((err: any) => {
+        message.error(err?.message || 'Không thể thu hồi tin nhắn.');
+      });
+    }
   }, []);
 
   const messageEndRef = useRef<HTMLDivElement>(null);
@@ -545,6 +565,26 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       });
     });
 
+    conn.on('MessageEdited', (payload: { messageId: number; newContent: string; editedAt: string }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === payload.messageId
+            ? { ...msg, content: payload.newContent, editedAt: payload.editedAt }
+            : msg
+        )
+      );
+    });
+
+    conn.on('MessageDeleted', (payload: { messageId: number }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === payload.messageId
+            ? { ...msg, content: '', deletedAt: new Date().toISOString() }
+            : msg
+        )
+      );
+    });
+
     // Sau khi kết nối lại: rejoin phòng + refetch tin hội thoại đang mở + refetch unread
     // (fold resync tối thiểu — tin đến lúc mất mạng không bị bỏ lỡ trên badge).
     conn.onreconnected(async () => {
@@ -680,6 +720,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       conn.off('UnreadUpdate');
       conn.off('ReadUpdate');
       conn.off('SeenUpdate');
+      conn.off('MessageEdited');
+      conn.off('MessageDeleted');
       prevRoomRef.current = null;
       conn.stop().catch(() => {});
     };
@@ -957,6 +999,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
                     onOpenSenderProfile={handleOpenSenderProfile}
                     onToggleReaction={handleToggleReaction}
                     onReply={handleReply}
+                    onEdit={handleEditMessage}
+                    onDelete={handleDeleteMessage}
                   />
                 );
               });

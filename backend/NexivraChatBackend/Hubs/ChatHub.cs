@@ -332,5 +332,81 @@ namespace NexivraChatBackend.Hubs
                 }
             }
         }
+
+        public async Task EditMessage(int messageId, string newContent)
+        {
+            if (messageId <= 0 || string.IsNullOrWhiteSpace(newContent))
+            {
+                throw new HubException("Dữ liệu chỉnh sửa không hợp lệ.");
+            }
+
+            var userIdStr = Context.UserIdentifier;
+            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
+            {
+                throw new HubException("Không xác định được danh tính người dùng.");
+            }
+
+            var affected = await _messageRepository.EditMessage(messageId, userId, newContent.Trim());
+            if (affected == 0)
+            {
+                throw new HubException("Không có quyền hoặc tin không tồn tại.");
+            }
+
+            var conv = await _reactionRepository.LookupConversation(messageId);
+            if (conv != null)
+            {
+                var payload = new { messageId, newContent = newContent.Trim(), editedAt = DateTime.Now };
+                if (conv.RoomId.HasValue)
+                {
+                    await Clients.Group(conv.RoomId.Value.ToString()).SendAsync("MessageEdited", payload);
+                }
+                else if (conv.PrivateChatId.HasValue)
+                {
+                    var chat = await _privateChatRepository.GetById(conv.PrivateChatId.Value);
+                    if (chat != null)
+                    {
+                        await Clients.Users(chat.User1Id.ToString(), chat.User2Id.ToString()).SendAsync("MessageEdited", payload);
+                    }
+                }
+            }
+        }
+
+        public async Task DeleteMessage(int messageId)
+        {
+            if (messageId <= 0)
+            {
+                throw new HubException("Tin nhắn không hợp lệ.");
+            }
+
+            var userIdStr = Context.UserIdentifier;
+            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
+            {
+                throw new HubException("Không xác định được danh tính người dùng.");
+            }
+
+            var conv = await _reactionRepository.LookupConversation(messageId);
+            var affected = await _messageRepository.SoftDeleteMessage(messageId, userId);
+            if (affected == 0)
+            {
+                throw new HubException("Không có quyền hoặc tin không tồn tại.");
+            }
+
+            if (conv != null)
+            {
+                var payload = new { messageId };
+                if (conv.RoomId.HasValue)
+                {
+                    await Clients.Group(conv.RoomId.Value.ToString()).SendAsync("MessageDeleted", payload);
+                }
+                else if (conv.PrivateChatId.HasValue)
+                {
+                    var chat = await _privateChatRepository.GetById(conv.PrivateChatId.Value);
+                    if (chat != null)
+                    {
+                        await Clients.Users(chat.User1Id.ToString(), chat.User2Id.ToString()).SendAsync("MessageDeleted", payload);
+                    }
+                }
+            }
+        }
     }
 }
