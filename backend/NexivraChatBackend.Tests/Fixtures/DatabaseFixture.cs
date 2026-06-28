@@ -43,7 +43,8 @@ namespace NexivraChatBackend.Tests.Fixtures
                 Console.WriteLine($"Docker is not available/running. Falling back to local PostgreSQL. Error: {ex.Message}");
                 _postgresContainer = null;
                 
-                var localBaseConnectionString = "Host=localhost;Database=postgres;Username=postgres;Password=Boggyroom24032005@";
+                var pgPassword = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD") ?? "changeme";
+                var localBaseConnectionString = $"Host=localhost;Database=postgres;Username=postgres;Password={pgPassword}";
                 var testDbName = "nexivra_chat_tests";
                 
                 // Create database if not exists
@@ -60,7 +61,7 @@ namespace NexivraChatBackend.Tests.Fixtures
                     }
                 }
                 
-                ConnectionString = $"Host=localhost;Database={testDbName};Username=postgres;Password=Boggyroom24032005@";
+                ConnectionString = $"Host=localhost;Database={testDbName};Username=postgres;Password={pgPassword}";
             }
 
             var configuration = new ConfigurationBuilder()

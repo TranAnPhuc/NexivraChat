@@ -4,18 +4,21 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace NexivraChatBackend.Services
 {
     public class TranslationService
     {
         private readonly HttpClient _httpClient;
+        private readonly ILogger<TranslationService> _logger;
         private readonly string _apiKey;
 
-        public TranslationService(HttpClient httpClient, IConfiguration config)
+        public TranslationService(HttpClient httpClient, IConfiguration config, ILogger<TranslationService> logger)
         {
             _httpClient = httpClient;
-            var configKey = config["Gemini:ApiKey"];
+            _logger = logger;
+            var configKey = config["Gemini:ApiKey"] ?? config["Gemini__ApiKey"];
             var envKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
             _apiKey = !string.IsNullOrEmpty(configKey) ? configKey : (!string.IsNullOrEmpty(envKey) ? envKey : string.Empty);
         }
@@ -57,6 +60,7 @@ namespace NexivraChatBackend.Services
                 var response = await _httpClient.PostAsync(url, content);
                 if (!response.IsSuccessStatusCode)
                 {
+                    _logger.LogError("Lỗi kết nối Gemini Translation API: {StatusCode}", response.StatusCode);
                     return $"[Lỗi Gemini API: {response.StatusCode}]";
                 }
 
@@ -81,6 +85,7 @@ namespace NexivraChatBackend.Services
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Ngoại lệ khi gọi Gemini Translation API");
                 return $"[Lỗi kết nối: {ex.Message}]";
             }
         }

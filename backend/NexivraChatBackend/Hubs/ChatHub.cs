@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
 using NexivraChatBackend.Models;
 using NexivraChatBackend.Repositories;
 using NexivraChatBackend.Services;
@@ -21,6 +22,7 @@ namespace NexivraChatBackend.Hubs
         private readonly ReactionRepository _reactionRepository;
         private readonly UserRepository _userRepository;
         private readonly MentionRepository _mentionRepository;
+        private readonly ILogger<ChatHub> _logger;
 
         public ChatHub(
             MessageRepository messageRepository,
@@ -30,7 +32,8 @@ namespace NexivraChatBackend.Hubs
             ConversationReadRepository conversationReadRepository,
             ReactionRepository reactionRepository,
             UserRepository userRepository,
-            MentionRepository mentionRepository)
+            MentionRepository mentionRepository,
+            ILogger<ChatHub> logger)
         {
             _messageRepository = messageRepository;
             _aiService = aiService;
@@ -40,6 +43,7 @@ namespace NexivraChatBackend.Hubs
             _reactionRepository = reactionRepository;
             _userRepository = userRepository;
             _mentionRepository = mentionRepository;
+            _logger = logger;
         }
 
         public async Task JoinRoom(int roomId)
@@ -86,6 +90,8 @@ namespace NexivraChatBackend.Hubs
         public override async Task OnConnectedAsync()
         {
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            var userId = Context.UserIdentifier ?? "unknown";
+            _logger.LogInformation("SignalR user connected. UserId: {UserId}, Username: {Username}, ConnectionId: {ConnectionId}", userId, username, Context.ConnectionId);
             _presenceTracker.AddGlobalConnection(Context.ConnectionId, username);
             await Clients.All.SendAsync("GlobalPresenceUpdate", _presenceTracker.GetGlobalOnlineUsers());
             await base.OnConnectedAsync();
@@ -94,6 +100,15 @@ namespace NexivraChatBackend.Hubs
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            var userId = Context.UserIdentifier ?? "unknown";
+            if (exception != null)
+            {
+                _logger.LogError(exception, "SignalR user disconnected with exception. UserId: {UserId}, ConnectionId: {ConnectionId}", userId, Context.ConnectionId);
+            }
+            else
+            {
+                _logger.LogInformation("SignalR user disconnected. UserId: {UserId}, Username: {Username}, ConnectionId: {ConnectionId}", userId, username, Context.ConnectionId);
+            }
             _presenceTracker.RemoveGlobalConnection(Context.ConnectionId);
             await Clients.All.SendAsync("GlobalPresenceUpdate", _presenceTracker.GetGlobalOnlineUsers());
 
