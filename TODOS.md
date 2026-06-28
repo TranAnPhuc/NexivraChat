@@ -32,7 +32,11 @@
 
 ## Hardening sau GĐ5.5 (Claude review, 2026-06-28)
 - [x] #C Kiểm soát truy cập file đính kèm (serve qua `/api/files` có auth + verify participant; +fix #E webp inline) — spec: `roadmap-foundation.md` mục "Hardening #C".
-- [ ] #D Check magic-bytes khi upload (content-type giả được) — residual thấp nhờ nosniff, defer.
+
+## Dọn nợ kỹ thuật — đợt 1 (Claude review, 2026-06-28) — spec: `roadmap-foundation.md` mục "Dọn nợ kỹ thuật — đợt 1"
+- [ ] #2 Receipts so theo `senderId` thay vì `senderName` (`ChatView.tsx:1102`; giữ chỗ mở hồ sơ theo tên).
+- [ ] #3 Xóa `MessageRepository.GetOldMessages` (dead code, không caller).
+- [ ] #D Check magic-bytes khi upload (chống đổi đuôi giả định dạng).
 
 ## Defer từ GĐ5.5 (Threat-Model & File Cleanup)
 - [ ] Rate-limit upload theo user ID (chống spam đĩa).

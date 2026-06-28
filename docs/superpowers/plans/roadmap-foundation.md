@@ -444,5 +444,46 @@ fixture đã có fallback Postgres local — nhưng mục tiêu là chạy full 
 
 ## Phụ lục: dọn nợ kỹ thuật (làm xen khi tiện)
 
-- Xóa `MessageRepository.GetOldMessages` (dead code, không caller) — hoặc tái dùng cho keyset 4.2 rồi đặt lại tên cho đúng.
 - `TempMessageId` dùng `int` — underflow lý thuyết sau ~2 tỷ lần, không đáng kể (để nguyên).
+
+---
+
+## Dọn nợ kỹ thuật — đợt 1 (Claude review, 2026-06-28)
+
+Gom 3 việc nhẹ, làm chung 1 lượt. Không thêm tính năng, chỉ làm sạch + chắc.
+
+### #2 — Receipts so theo `senderId` thay vì `senderName`
+**Vấn đề:** `ChatView.tsx` xác định "tin của mình" bằng `senderName === username` (string),
+trùng tên là sai. Từ GĐ4.4 message đã có `senderId`, và frontend đã có `currentUserId`
+(decode JWT, `ChatView.tsx:85`).
+**Việc:**
+- `ChatView.tsx:1102` (vòng tìm `latestMyId` cho DM receipts): đổi
+  `messages[i].senderName === username` → `messages[i].senderId === currentUserId`.
+  Giữ fallback: nếu `senderId == null` (tin cũ chưa backfill) thì vẫn so `senderName === username`.
+- Rà các chỗ khác trong `ChatView.tsx` dùng `senderName === username` để phân biệt "mình":
+  những chỗ chỉ để **mở hồ sơ** (vd `handleOpenSenderProfile:149`) thì GIỮ NGUYÊN (đó là theo tên,
+  đúng ngữ cảnh) — chỉ đổi chỗ liên quan receipts/"tin của mình".
+**Acceptance:** 2 user trùng `username` (nếu DB cho phép) hoặc test tay: badge Đã gửi/Đã xem
+chỉ gắn vào tin của đúng người đang đăng nhập.
+
+### #3 — Xóa `MessageRepository.GetOldMessages`
+**Vấn đề:** dead code, không caller (đã grep toàn repo). Keyset 4.2 dùng method khác.
+**Việc:** Xóa hẳn method `GetOldMessages(int limit, int offset)` trong `MessageRepository.cs`.
+Bỏ ghi chú "dead code" tương ứng trong `context.md` + `TODOS.md`.
+**Acceptance:** `dotnet build` xanh (xác nhận không còn caller).
+
+### #D — Check magic-bytes khi upload
+**Vấn đề:** `UploadController` mới whitelist theo extension + content-type (client gửi, giả được).
+Residual đã thấp nhờ `nosniff`, nhưng thêm kiểm magic-bytes cho chắc.
+**Việc:** Trong `UploadController.UploadFile`, sau khi qua whitelist ext/mime, đọc vài byte đầu
+của stream và đối chiếu signature theo ext:
+- JPEG: `FF D8 FF`
+- PNG: `89 50 4E 47 0D 0A 1A 0A`
+- GIF: `47 49 46 38` ("GIF8")
+- WEBP: byte 0–3 = `52 49 46 46` ("RIFF") **và** byte 8–11 = `57 45 42 50` ("WEBP")
+- PDF: `25 50 44 46 2D` ("%PDF-")
+
+Đọc bằng `file.OpenReadStream()` (peek header rồi reset/CopyTo), KHÔNG load cả file vào RAM.
+Nếu signature không khớp ext → `BadRequest("Nội dung file không khớp định dạng khai báo.")`.
+Bỏ qua khi không match được mục nào trong whitelist (đã chặn ở bước trước).
+**Acceptance:** đổi tên `.exe`→`.png` rồi upload → bị từ chối; ảnh thật vẫn upload OK.
