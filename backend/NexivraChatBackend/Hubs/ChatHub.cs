@@ -100,7 +100,7 @@ namespace NexivraChatBackend.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendMessage(int roomId, string content, int? replyToId = null)
+        public async Task SendMessage(int roomId, string content, int? replyToId = null, string? attachmentUrl = null, string? attachmentName = null, string? attachmentType = null, long? attachmentSize = null)
         {
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
             var roomString = roomId.ToString();
@@ -122,7 +122,11 @@ namespace NexivraChatBackend.Hubs
                 Content = content,
                 CreatedAt = DateTime.Now,
                 IsAi = false,
-                ReplyToId = validReplyToId
+                ReplyToId = validReplyToId,
+                AttachmentUrl = attachmentUrl,
+                AttachmentName = attachmentName,
+                AttachmentType = attachmentType,
+                AttachmentSize = attachmentSize
             };
             await _messageRepository.SaveNewMessage(userMessage);
 
@@ -243,7 +247,7 @@ namespace NexivraChatBackend.Hubs
             }
         }
 
-        public async Task SendPrivateMessage(int receiverId, string content, int? replyToId = null)
+        public async Task SendPrivateMessage(int receiverId, string content, int? replyToId = null, string? attachmentUrl = null, string? attachmentName = null, string? attachmentType = null, long? attachmentSize = null)
         {
             var senderIdStr = Context.UserIdentifier;
             if (string.IsNullOrEmpty(senderIdStr) || !int.TryParse(senderIdStr, out var senderId))
@@ -266,7 +270,11 @@ namespace NexivraChatBackend.Hubs
                 Content = content,
                 CreatedAt = DateTime.Now,
                 IsAi = false,
-                ReplyToId = validReplyToId
+                ReplyToId = validReplyToId,
+                AttachmentUrl = attachmentUrl,
+                AttachmentName = attachmentName,
+                AttachmentType = attachmentType,
+                AttachmentSize = attachmentSize
             };
             await _messageRepository.SaveNewMessage(userMessage);
 

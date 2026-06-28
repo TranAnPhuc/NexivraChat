@@ -99,6 +99,19 @@ catch (Exception ex)
 // 7. Cấu hình HTTP Request Pipeline
 app.UseCors("CorsPolicy");
 
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        var contentType = ctx.Context.Response.ContentType ?? "";
+        if (!contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.Append("Content-Disposition", "attachment");
+        }
+    }
+});
+
 app.UseHttpsRedirection();
 
 app.UseAuthentication();

@@ -110,6 +110,10 @@ namespace NexivraChatBackend.Data
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INT NULL REFERENCES messages(id) ON DELETE SET NULL;
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP NULL;
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_url VARCHAR(512) NULL;
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_name VARCHAR(255) NULL;
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_type VARCHAR(100) NULL;
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_size BIGINT NULL;
                     UPDATE messages m
                     SET sender_id = u.id
                     FROM users u

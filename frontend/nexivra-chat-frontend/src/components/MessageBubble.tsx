@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { RobotOutlined, TranslationOutlined, RollbackOutlined, EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import { Input, Button, Modal } from 'antd';
+import { RobotOutlined, TranslationOutlined, RollbackOutlined, EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, FileOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Input, Button, Modal, Image } from 'antd';
 import type { Message, ReactionSummary } from '../views/ChatView';
+import { API_BASE_URL } from '../services/api';
 
 interface MessageBubbleProps {
   msg: Message;
@@ -60,7 +61,18 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     });
   };
 
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const isImageAttachment = msg.attachmentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.attachmentUrl || '');
+  const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+
   const renderFormattedContent = (text: string) => {
+    if (!text) return null;
     const parts = text.split(/(@[A-Za-z0-9_]+)/g);
     return parts.map((part, index) => {
       if (part.startsWith('@')) {
@@ -183,6 +195,49 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             </div>
           )}
 
+          {msg.attachmentUrl && !isDeleted && (
+            <div style={{ marginBottom: msg.content ? '8px' : '0' }}>
+              {isImageAttachment ? (
+                <div style={{ marginTop: '4px', marginBottom: '4px' }}>
+                  <Image
+                    src={`${baseUrl}${msg.attachmentUrl}`}
+                    alt={msg.attachmentName || 'Ảnh đính kèm'}
+                    style={{ maxWidth: '240px', maxHeight: '240px', borderRadius: '8px', objectFit: 'cover' }}
+                  />
+                </div>
+              ) : (
+                <a
+                  href={`${baseUrl}${msg.attachmentUrl}`}
+                  download={msg.attachmentName}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    backgroundColor: isMe ? 'rgba(255,255,255,0.2)' : 'var(--bg-elevated)',
+                    borderRadius: '8px',
+                    color: isMe ? 'var(--bubble-me-text)' : 'var(--primary)',
+                    textDecoration: 'none',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    marginTop: '4px',
+                  }}
+                >
+                  <FileOutlined style={{ fontSize: '16px' }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>
+                    {msg.attachmentName || 'File đính kèm'}
+                  </span>
+                  <span style={{ fontSize: '11px', opacity: 0.8 }}>
+                    ({formatFileSize(msg.attachmentSize)})
+                  </span>
+                  <DownloadOutlined style={{ marginLeft: '4px' }} />
+                </a>
+              )}
+            </div>
+          )}
+
           {isDeleted ? (
             <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Tin đã bị xóa</span>
           ) : isEditing ? (
@@ -284,7 +339,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             </>
           )}
 
-          {!isMe && (
+          {!isMe && msg.content && (
             <>
               {isTranslating ? (
                 <span style={{ color: 'var(--primary)', fontStyle: 'italic' }}>Đang dịch...</span>

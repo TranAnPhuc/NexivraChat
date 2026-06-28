@@ -20,5 +20,9 @@ namespace NexivraChatBackend.Models
         public string? ReplyToContent { get; set; }
         public DateTime? EditedAt { get; set; }
         public DateTime? DeletedAt { get; set; }
+        public string? AttachmentUrl { get; set; }
+        public string? AttachmentName { get; set; }
+        public string? AttachmentType { get; set; }
+        public long? AttachmentSize { get; set; }
     }
 }

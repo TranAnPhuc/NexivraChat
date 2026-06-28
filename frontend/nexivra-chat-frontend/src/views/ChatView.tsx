@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
 import { Input, Button, message, notification } from 'antd';
-import { SendOutlined } from '@ant-design/icons';
+import { SendOutlined, PaperClipOutlined, FileOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { API_BASE_URL } from '../services/api';
 import { RoomSidebar, type Room, type SidebarUser } from '../components/RoomSidebar';
@@ -30,6 +30,10 @@ export interface Message {
   replyToContent?: string;
   editedAt?: string;
   deletedAt?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
+  attachmentSize?: number;
 }
 
 export interface ReactionSummary {
@@ -74,6 +78,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [mentionRooms, setMentionRooms] = useState<Set<number>>(new Set());
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState<number>(-1);
+  const [pendingAttachment, setPendingAttachment] = useState<{ url: string; name: string; type: string; size: number } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentUserId = useMemo(() => {
     try {
@@ -862,19 +869,61 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     }, 2000);
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      message.error('Kích thước file không được vượt quá 10 MB.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
+    if (ext === '.svg' || !allowedExts.includes(ext)) {
+      message.error('Loại file không được hỗ trợ (Tuyệt đối cấm SVG. Chỉ chấp nhận JPG, PNG, GIF, WEBP, PDF).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPendingAttachment(res.data);
+      message.success('Tải file đính kèm thành công!');
+    } catch (err: any) {
+      const errorMsg = err.response?.data || 'Không thể tải file đính kèm lên máy chủ.';
+      message.error(errorMsg);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   // 5. Gửi tin nhắn qua SignalR Hub
   const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend !== undefined ? textToSend : inputText;
-    if (!text.trim() || !connection) return;
+    if ((!text.trim() && !pendingAttachment) || !connection) return;
 
     try {
       const replyToId = replyingTo?.id;
+      const attUrl = pendingAttachment?.url ?? null;
+      const attName = pendingAttachment?.name ?? null;
+      const attType = pendingAttachment?.type ?? null;
+      const attSize = pendingAttachment?.size ?? null;
+
       if (activeChatType === 'room') {
         if (activeRoomId === null) return;
-        await connection.invoke('SendMessage', activeRoomId, text.trim(), replyToId);
+        await connection.invoke('SendMessage', activeRoomId, text.trim(), replyToId, attUrl, attName, attType, attSize);
       } else {
         if (activePrivateChatId === null || !activeRecipient) return;
-        await connection.invoke('SendPrivateMessage', activeRecipient.id, text.trim(), replyToId);
+        await connection.invoke('SendPrivateMessage', activeRecipient.id, text.trim(), replyToId, attUrl, attName, attType, attSize);
       }
 
       if (isTypingRef.current) {
@@ -887,6 +936,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       }
       setReplyingTo(null);
       setMentionQuery(null);
+      setPendingAttachment(null);
     } catch (err) {
       message.error('Không thể gửi tin nhắn.');
     }
@@ -1138,7 +1188,32 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               <Button type="text" size="small" onClick={() => setReplyingTo(null)} style={{ color: 'var(--text-muted)' }}>✕</Button>
             </div>
           )}
+          {pendingAttachment && (
+            <div style={{ padding: '6px 12px', backgroundColor: 'var(--bg-elevated)', borderLeft: '3px solid #0D9488', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', marginRight: '8px' }}>
+                <FileOutlined style={{ color: '#0D9488' }} />
+                <span style={{ fontWeight: 600, color: '#0D9488' }}>File đính kèm: </span>
+                <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {pendingAttachment.name} ({pendingAttachment.size < 1024 * 1024 ? `${(pendingAttachment.size / 1024).toFixed(1)} KB` : `${(pendingAttachment.size / (1024 * 1024)).toFixed(1)} MB`})
+                </span>
+              </div>
+              <Button type="text" size="small" onClick={() => setPendingAttachment(null)} style={{ color: 'var(--text-muted)' }}>✕</Button>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '10px' }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+              accept=".jpg,.jpeg,.png,.gif,.webp,.pdf"
+            />
+            <Button
+              icon={<PaperClipOutlined />}
+              loading={isUploading}
+              onClick={() => fileInputRef.current?.click()}
+              title="Đính kèm ảnh hoặc file tài liệu (≤10MB)"
+            />
             <Input
               value={inputText}
               onChange={(e) => handleInputChange(e.target.value)}

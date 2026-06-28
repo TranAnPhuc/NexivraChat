@@ -27,6 +27,13 @@
 - [x] GĐ5.2 Reply/Quote — spec: `roadmap-foundation.md` mục GĐ5.2.
 - [x] GĐ5.3 Sửa/Xóa tin nhắn — spec: `roadmap-foundation.md` mục GĐ5.3.
 - [x] GĐ5.4 @mention nhắc tên — spec: `roadmap-foundation.md` mục GĐ5.4.
+- [ ] GĐ5.4-test Thêm test `GetUnreadMentionRoomIds` (đóng nốt kỷ luật test). **(làm ngay)**
+- [x] GĐ5.5 Gửi ảnh/file — spec: `roadmap-foundation.md` mục GĐ5.5 (kèm threat-model).
+
+## Defer từ GĐ5.5 (Threat-Model & File Cleanup)
+- [ ] Rate-limit upload theo user ID (chống spam đĩa).
+- [ ] Quét virus/malware tự động cho file tải lên.
+- [ ] Dọn dẹp file mồ côi (khi tin nhắn có đính kèm bị xóa/thu hồi).
 
 ## Defer từ review unread-badges
 - [ ] Web Push / OS notification — chống bỏ lỡ khi app đóng (CEO #3). Giá trị cao, follow-up lớn.

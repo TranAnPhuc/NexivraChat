@@ -27,6 +27,8 @@ namespace NexivraChatBackend.Repositories
                            CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
                            m.created_at AS CreatedAt, m.is_ai AS IsAi,
                            m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                           m.attachment_url AS AttachmentUrl, m.attachment_name AS AttachmentName,
+                           m.attachment_type AS AttachmentType, m.attachment_size AS AttachmentSize,
                            m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
                            CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                     FROM messages m
@@ -46,6 +48,8 @@ namespace NexivraChatBackend.Repositories
                            CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
                            m.created_at AS CreatedAt, m.is_ai AS IsAi,
                            m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                           m.attachment_url AS AttachmentUrl, m.attachment_name AS AttachmentName,
+                           m.attachment_type AS AttachmentType, m.attachment_size AS AttachmentSize,
                            m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
                            CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                     FROM messages m
@@ -67,6 +71,8 @@ namespace NexivraChatBackend.Repositories
                                CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
                                m.created_at AS CreatedAt, m.is_ai AS IsAi,
                                m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                               m.attachment_url AS AttachmentUrl, m.attachment_name AS AttachmentName,
+                               m.attachment_type AS AttachmentType, m.attachment_size AS AttachmentSize,
                                m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
                                CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                         FROM messages m
@@ -82,6 +88,8 @@ namespace NexivraChatBackend.Repositories
                                CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
                                m.created_at AS CreatedAt, m.is_ai AS IsAi,
                                m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                               m.attachment_url AS AttachmentUrl, m.attachment_name AS AttachmentName,
+                               m.attachment_type AS AttachmentType, m.attachment_size AS AttachmentSize,
                                m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
                                CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                         FROM messages m
@@ -106,6 +114,8 @@ namespace NexivraChatBackend.Repositories
                                CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
                                m.created_at AS CreatedAt, m.is_ai AS IsAi,
                                m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                               m.attachment_url AS AttachmentUrl, m.attachment_name AS AttachmentName,
+                               m.attachment_type AS AttachmentType, m.attachment_size AS AttachmentSize,
                                m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
                                CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                         FROM messages m
@@ -121,6 +131,8 @@ namespace NexivraChatBackend.Repositories
                                CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
                                m.created_at AS CreatedAt, m.is_ai AS IsAi,
                                m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                               m.attachment_url AS AttachmentUrl, m.attachment_name AS AttachmentName,
+                               m.attachment_type AS AttachmentType, m.attachment_size AS AttachmentSize,
                                m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
                                CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                         FROM messages m
@@ -138,8 +150,8 @@ namespace NexivraChatBackend.Repositories
             using (var connection = _context.CreateConnection())
             {
                 var query = @"
-                    INSERT INTO messages (room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai, reply_to_id)
-                    VALUES (@room_id, @private_chat_id, @sender_id, @sender_name, @content, @created_at, @is_ai, @reply_to_id)
+                    INSERT INTO messages (room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai, reply_to_id, attachment_url, attachment_name, attachment_type, attachment_size)
+                    VALUES (@room_id, @private_chat_id, @sender_id, @sender_name, @content, @created_at, @is_ai, @reply_to_id, @attachment_url, @attachment_name, @attachment_type, @attachment_size)
                     RETURNING id;";
 
                 var id = await connection.ExecuteScalarAsync<int>(query, new
@@ -151,7 +163,11 @@ namespace NexivraChatBackend.Repositories
                     content = message.Content,
                     created_at = message.CreatedAt == default ? DateTime.Now : message.CreatedAt,
                     is_ai = message.IsAi,
-                    reply_to_id = message.ReplyToId
+                    reply_to_id = message.ReplyToId,
+                    attachment_url = message.AttachmentUrl,
+                    attachment_name = message.AttachmentName,
+                    attachment_type = message.AttachmentType,
+                    attachment_size = message.AttachmentSize
                 });
                 message.Id = id;
             }
@@ -191,6 +207,8 @@ namespace NexivraChatBackend.Repositories
                            CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
                            m.created_at AS CreatedAt, m.is_ai AS IsAi,
                            m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                           m.attachment_url AS AttachmentUrl, m.attachment_name AS AttachmentName,
+                           m.attachment_type AS AttachmentType, m.attachment_size AS AttachmentSize,
                            m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
                            CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
                     FROM messages m
