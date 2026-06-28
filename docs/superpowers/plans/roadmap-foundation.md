@@ -552,3 +552,66 @@ public async Task TypingPrivate(int receiverId, bool isTyping)
 - Typing DM **không** rò sang phòng và ngược lại (đúng `activeChatType` + đúng `recipientId`).
 - A đang chat DM với B, C gửi typing DM cho A (cửa sổ khác) → A KHÔNG thấy (lọc theo `recipientId`).
 - `npm run build` sạch; typing phòng vẫn hoạt động như cũ (không regress).
+
+---
+
+## GĐ5.6 — Tìm kiếm tin nhắn trong hội thoại
+
+**Mục tiêu:** Tìm theo từ khóa trong **hội thoại đang mở** (1 phòng hoặc 1 DM), trả danh sách
+kết quả (người gửi + đoạn trích + thời gian), bấm vào → nhảy tới đúng tin và highlight.
+Phạm vi v1: tìm trong **content text** (không tìm trong file/đính kèm), chỉ hội thoại đang mở
+(không search toàn cục — defer).
+
+### Backend — Repository (`MessageRepository.cs`)
+Thêm 2 method, **cùng bộ cột SELECT** như `GetMessagesByRoom` (gồm reply snapshot), keyset `id DESC`:
+```csharp
+public async Task<List<Message>> SearchRoomMessages(int roomId, string keyword, int limit = 30, int? beforeId = null)
+public async Task<List<Message>> SearchPrivateChatMessages(int privateChatId, string keyword, int limit = 30, int? beforeId = null)
+```
+- WHERE: `room_id = @roomId AND m.deleted_at IS NULL AND m.content ILIKE @pattern AND (@beforeId IS NULL OR m.id < @beforeId) ORDER BY m.id DESC LIMIT @limit`.
+- **Escape ký tự ILIKE** trong keyword trước khi bọc `%...%`: thay `\`→`\\`, `%`→`\%`, `_`→`\_`;
+  truyền `@pattern = $"%{escaped}%"` và thêm `ESCAPE '\'` vào mệnh đề ILIKE.
+- Dùng tham số Dapper (chống SQL injection) — KHÔNG nội suy chuỗi vào SQL.
+- KHÔNG cần `Reverse()` (kết quả search hiển thị mới→cũ là hợp lý).
+
+### Backend — Controllers
+- `RoomsController`: `[HttpGet("{id}/messages/search")]`
+  `Search(int id, [FromQuery] string q, [FromQuery] int limit = 30, [FromQuery] int? beforeId = null)`.
+  Validate `q` trim, độ dài ≥ 2 → nếu không, `Ok(empty list)`. Gọi `SearchRoomMessages`.
+- `UsersController`: `[HttpGet("private-chat/{id}/messages/search")]` — **lặp đúng khối verify
+  participant** như `GetPrivateChatMessages:111-127` (NotFound nếu chat null, Unauthorized nếu
+  không parse được user, Forbid nếu không phải `User1Id/User2Id`), rồi gọi `SearchPrivateChatMessages`.
+
+### Frontend — `ChatView.tsx`
+1. **State:** `searchOpen: boolean`, `searchQuery: string`, `searchResults: Message[]`, `searching: boolean`,
+   `highlightedMsgId: number | null`.
+2. **UI nút kính lúp** ở header hội thoại (cạnh tên phòng/đối phương) → toggle ô search.
+   Ô input + debounce ~350ms; gõ ≥2 ký tự mới gọi API. Endpoint theo `activeChatType`:
+   - room: `api.get(\`/rooms/${activeRoomId}/messages/search?q=${encodeURIComponent(q)}\`)`
+   - private: `api.get(\`/users/private-chat/${activePrivateChatId}/messages/search?q=${encodeURIComponent(q)}\`)`
+3. **Panel kết quả** (dropdown/cột bên): mỗi item hiển thị `senderName`, đoạn `content` (cắt ~80 ký tự),
+   thời gian. Rỗng → "Không tìm thấy". Đóng panel khi chọn item hoặc bấm X.
+4. **Nhảy tới tin (jump):** khi bấm 1 kết quả `resultId`:
+   - Nếu `messages` đã chứa `resultId` → scroll `document.getElementById(\`msg-${resultId}\`)` vào giữa
+     (`scrollIntoView({ block: 'center' })`), set `highlightedMsgId = resultId`, tự xóa sau ~2s.
+   - Nếu chưa có → fetch 1 trang quanh tin: gọi endpoint messages thường với
+     `beforeId = resultId + 1` (để `resultId` là tin mới nhất trong trang + 49 tin cũ hơn),
+     **thay** `messages` bằng trang đó, set `oldestMessageId`/`hasMore=true`, rồi scroll + highlight
+     như trên (dùng `flushSync`/`requestAnimationFrame` để chắc DOM đã render trước khi scroll).
+   - **Defer:** nút "tải tin mới hơn" sau khi nhảy về quá khứ (hiện chỉ có load-older). Ghi vào TODOS.
+5. **Highlight:** trong `MessageBubble` (hoặc wrapper) thêm style nền nhấp nháy khi `msg.id === highlightedMsgId`
+   (truyền prop xuống, hoặc set class qua DOM rồi gỡ). Dùng token màu, không hardcode tím.
+6. **Reset:** đổi hội thoại → đóng search, clear `searchResults`/`searchQuery`/`highlightedMsgId`.
+
+### Acceptance
+- Gõ từ khóa trong phòng → ra đúng tin chứa từ đó (không gồm tin đã xóa).
+- Bấm kết quả đang hiển thị → cuộn tới + highlight; bấm kết quả cũ (chưa load) → nạp trang rồi nhảy đúng.
+- DM: người ngoài cuộc gọi endpoint search → **403** (lặp verify participant).
+- Ký tự đặc biệt `%` `_` trong từ khóa được xử lý như literal (escape ILIKE), không lỗi/không match bừa.
+- `dotnet build` + `npm run build` xanh.
+
+### Test (đóng kỷ luật test)
+`Integration/MessageSearchTests.cs` (theo pattern `[Collection("DatabaseCollection")]` + `IAsyncLifetime`):
+- `SearchRoomMessages_FindsMatch_CaseInsensitive`.
+- `SearchRoomMessages_ExcludesDeleted`.
+- `SearchRoomMessages_EscapesWildcard` (chèn tin có `%`, search `%` literal chỉ khớp tin đó).
