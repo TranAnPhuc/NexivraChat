@@ -1099,8 +1099,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               let latestMyId: number | null = null;
               if (activeChatType === 'private') {
                 for (let i = messages.length - 1; i >= 0; i--) {
-                  if (messages[i].senderName === username) {
-                    latestMyId = messages[i].id;
+                  const m = messages[i];
+                  const isMine = m.senderId != null ? m.senderId === currentUserId : m.senderName === username;
+                  if (isMine) {
+                    latestMyId = m.id;
                     break;
                   }
                 }
