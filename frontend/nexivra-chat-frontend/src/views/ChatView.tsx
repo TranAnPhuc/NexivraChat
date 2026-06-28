@@ -1,9 +1,10 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { Input, Button, message } from 'antd';
-import { SendOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import { flushSync } from 'react-dom';
+import { Input, Button, message, notification } from 'antd';
+import { SendOutlined, PaperClipOutlined, FileOutlined, SearchOutlined, CloseOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { API_BASE_URL } from '../services/api';
 import { RoomSidebar, type Room, type SidebarUser } from '../components/RoomSidebar';
@@ -19,10 +20,27 @@ export interface Message {
   id: number;
   roomId?: number;
   privateChatId?: number;
+  senderId?: number;
   senderName: string;
   content: string;
   createdAt: string;
   isAi: boolean;
+  replyToId?: number;
+  replyToSenderName?: string;
+  replyToContent?: string;
+  editedAt?: string;
+  deletedAt?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
+  attachmentSize?: number;
+}
+
+export interface ReactionSummary {
+  messageId: number;
+  emoji: string;
+  count: number;
+  mineReacted: boolean;
 }
 
 interface ChatViewProps {
@@ -45,17 +63,85 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [notifications, setNotifications] = useState<string[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [privateTypingFrom, setPrivateTypingFrom] = useState<number | null>(null);
   const [translations, setTranslations] = useState<Record<number, string>>({});
   const [translatingIds, setTranslatingIds] = useState<Record<number, boolean>>({});
+  // Số tin chưa đọc theo phòng / theo DM. Key là id (number; object JS coerce "1"===1 nên
+  // dữ liệu JSON từ backend với key string vẫn tra cứu được bằng number).
+  const [unread, setUnread] = useState<{ rooms: Record<number, number>; privateChats: Record<number, number> }>({ rooms: {}, privateChats: {} });
   const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   // Chỉ mount ProfileView (lazy chunk) sau lần đầu mở hồ sơ; giữ mount để Modal có animation đóng/mở.
   const [profileEverOpened, setProfileEverOpened] = useState(false);
+  const [partnerLastReadId, setPartnerLastReadId] = useState<number>(0);
+  const [reactions, setReactions] = useState<Record<number, ReactionSummary[]>>({});
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [mentionRooms, setMentionRooms] = useState<Set<number>>(new Set());
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState<number>(-1);
+  const [pendingAttachment, setPendingAttachment] = useState<{ url: string; name: string; type: string; size: number } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [highlightedMsgId, setHighlightedMsgId] = useState<number | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const currentUserId = useMemo(() => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const idStr = payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || payload['nameidentifier'] || payload['sub'];
+      return idStr ? parseInt(idStr, 10) : null;
+    } catch {
+      return null;
+    }
+  }, [token]);
+
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   // Giữ bản tham chiếu users mới nhất để callback mở-profile-theo-tên ổn định
   // (không tạo lại khi presence cập nhật), nhờ đó React.memo của MessageBubble giữ hiệu lực.
   const usersRef = useRef(users);
   useEffect(() => { usersRef.current = users; }, [users]);
+
+  // Đánh dấu một hội thoại đã đọc.
+  // - serverId: room → roomId; private → privateChatId (khóa lưu trữ).
+  // - badgeKey: room → roomId; private → id NGƯỜI ĐỐI THOẠI (khóa badge ở sidebar).
+  //   Bỏ qua xóa badge nếu badgeKey không truyền (vd hội thoại đang mở, badge vốn = 0).
+  const markConversationRead = useCallback((type: 'room' | 'private', serverId: number | null, lastMessageId: number, badgeKey?: number) => {
+    if (!serverId) return;
+    if (badgeKey !== undefined && badgeKey !== null) {
+      setUnread((prev) => {
+        const key = type === 'room' ? 'rooms' : 'privateChats';
+        if (prev[key][badgeKey] === undefined) return prev;
+        const inner = { ...prev[key] };
+        delete inner[badgeKey];
+        return { ...prev, [key]: inner };
+      });
+    }
+    const conn = connectionRef.current;
+    if (!conn || conn.state !== 'Connected') return;
+    const lastId = lastMessageId && lastMessageId > 0 ? lastMessageId : 0;
+    if (type === 'room') conn.invoke('MarkRead', serverId, null, lastId).catch(() => {});
+    else conn.invoke('MarkRead', null, serverId, lastId).catch(() => {});
+  }, []);
+
+  const fetchUnreadCounts = useCallback(async () => {
+    try {
+      const response = await api.get('/users/unread-counts');
+      setUnread({
+        rooms: response.data.rooms || {},
+        privateChats: response.data.privateChats || {},
+      });
+    } catch (err) {
+      console.error('Không thể lấy số tin chưa đọc.', err);
+    }
+  }, []);
 
   const handleOpenProfile = useCallback((userId: number) => {
     setProfileUserId(userId);
@@ -75,17 +161,78 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   }, [handleOpenProfile, username]);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const privateTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   
   const connectionRef = useRef<HubConnection | null>(null);
   const activeRoomIdRef = useRef<number | null>(null);
   const activePrivateChatIdRef = useRef<number | null>(null);
   const activeChatTypeRef = useRef<'room' | 'private'>('room');
+  // id người đối thoại của DM đang mở (khóa badge keyed-by-user).
+  const activeRecipientIdRef = useRef<number | null>(null);
   // Phòng đang tham gia trên hub, để Leave đúng phòng cũ khi chuyển phòng
   const prevRoomRef = useRef<number | null>(null);
+  const lastReceivedMessageIdRef = useRef<number | null>(null);
+  const currentUserIdRef = useRef<number | null>(null);
+  useEffect(() => { currentUserIdRef.current = currentUserId; }, [currentUserId]);
+
+  const fetchReactionsForMessages = useCallback(async (msgs: Message[]) => {
+    const positiveIds = msgs.filter((m) => m.id > 0).map((m) => m.id);
+    if (positiveIds.length === 0) return;
+    try {
+      const response = await api.get(`/reactions?messageIds=${positiveIds.join(',')}`);
+      const list = response.data as ReactionSummary[];
+      const map: Record<number, ReactionSummary[]> = {};
+      for (const item of list) {
+        if (!map[item.messageId]) map[item.messageId] = [];
+        map[item.messageId].push(item);
+      }
+      setReactions((prev) => ({ ...prev, ...map }));
+    } catch (err) {
+      console.error('Không thể tải reactions:', err);
+    }
+  }, []);
+
+  const handleToggleReaction = useCallback((messageId: number, emoji: string) => {
+    const conn = connectionRef.current;
+    if (conn && conn.state === 'Connected') {
+      conn.invoke('ToggleReaction', messageId, emoji).catch(() => {});
+    }
+  }, []);
+
+  const handleReply = useCallback((msg: Message) => {
+    setReplyingTo(msg);
+  }, []);
+
+  const handleEditMessage = useCallback((messageId: number, newContent: string) => {
+    const conn = connectionRef.current;
+    if (conn && conn.state === 'Connected') {
+      conn.invoke('EditMessage', messageId, newContent).catch((err: any) => {
+        message.error(err?.message || 'Không thể chỉnh sửa tin nhắn.');
+      });
+    }
+  }, []);
+
+  const handleDeleteMessage = useCallback((messageId: number) => {
+    const conn = connectionRef.current;
+    if (conn && conn.state === 'Connected') {
+      conn.invoke('DeleteMessage', messageId).catch((err: any) => {
+        message.error(err?.message || 'Không thể thu hồi tin nhắn.');
+      });
+    }
+  }, []);
 
   const messageEndRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
+
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const isPrependingRef = useRef(false);
+
+  const oldestMessageId = (() => {
+    const positiveIds = messages.filter(m => m.id > 0).map(m => m.id);
+    return positiveIds.length > 0 ? Math.min(...positiveIds) : null;
+  })();
 
   // 1. Tải danh sách phòng từ API
   const fetchRooms = async () => {
@@ -111,28 +258,119 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     }
   };
 
+  const fetchUnreadMentions = async () => {
+    try {
+      const response = await api.get('/users/mentions');
+      setMentionRooms(new Set(response.data as number[]));
+    } catch (err) {
+      console.error('Không thể lấy danh sách nhắc tên chưa đọc.', err);
+    }
+  };
+
   useEffect(() => {
     fetchRooms();
     fetchUsers();
+    fetchUnreadCounts();
+    fetchUnreadMentions();
   }, []);
 
-  // 3. Tải lịch sử tin nhắn phòng chat
+  // 3. Tải lịch sử tin nhắn phòng chat (mở phòng = đã đọc tới tin cuối)
   const fetchMessageHistory = async (roomId: number) => {
     try {
-      const response = await api.get(`/rooms/${roomId}/messages?limit=50&offset=0`);
-      setMessages(response.data);
+      setHasMore(true);
+      setLoadingOlder(false);
+      isPrependingRef.current = false;
+      setPartnerLastReadId(0);
+      const response = await api.get(`/rooms/${roomId}/messages?limit=50`);
+      const data = response.data as Message[];
+      setMessages(data);
+      fetchReactionsForMessages(data);
+      setHasMore(data.length >= 50);
+      const lastId = data.length ? data[data.length - 1].id : 0;
+      markConversationRead('room', roomId, lastId, roomId);
     } catch (err) {
       message.error('Không thể lấy lịch sử tin nhắn.');
     }
   };
 
-  // 4. Tải lịch sử tin nhắn riêng tư
-  const fetchPrivateMessageHistory = async (chatId: number) => {
+  // 4. Tải lịch sử tin nhắn riêng tư (mở DM = đã đọc tới tin cuối).
+  //    recipientUserId là khóa badge ở sidebar (DM key theo người đối thoại).
+  const fetchPrivateMessageHistory = async (chatId: number, recipientUserId?: number) => {
     try {
-      const response = await api.get(`/users/private-chat/${chatId}/messages?limit=50&offset=0`);
-      setMessages(response.data);
+      setHasMore(true);
+      setLoadingOlder(false);
+      isPrependingRef.current = false;
+      const response = await api.get(`/users/private-chat/${chatId}/messages?limit=50`);
+      const data = response.data as Message[];
+      setMessages(data);
+      fetchReactionsForMessages(data);
+      setHasMore(data.length >= 50);
+
+      const partnerReadHeader = response.headers['x-partner-last-read-id'];
+      if (partnerReadHeader) {
+        setPartnerLastReadId(parseInt(partnerReadHeader, 10) || 0);
+      } else {
+        setPartnerLastReadId(0);
+      }
+
+      const lastId = data.length ? data[data.length - 1].id : 0;
+      markConversationRead('private', chatId, lastId, recipientUserId);
     } catch (err) {
       message.error('Không thể lấy lịch sử tin nhắn riêng tư.');
+    }
+  };
+
+  const loadOlderMessages = async () => {
+    if (loadingOlder || !hasMore || !oldestMessageId) return;
+
+    setLoadingOlder(true);
+    isPrependingRef.current = true;
+
+    const container = messagesContainerRef.current;
+    const prevScrollHeight = container ? container.scrollHeight : 0;
+    const prevScrollTop = container ? container.scrollTop : 0;
+
+    try {
+      let response;
+      if (activeChatType === 'room') {
+        if (activeRoomId === null) return;
+        response = await api.get(`/rooms/${activeRoomId}/messages?limit=50&beforeId=${oldestMessageId}`);
+      } else {
+        if (activePrivateChatId === null) return;
+        response = await api.get(`/users/private-chat/${activePrivateChatId}/messages?limit=50&beforeId=${oldestMessageId}`);
+      }
+
+      const newMessages = response.data as Message[];
+      fetchReactionsForMessages(newMessages);
+
+      flushSync(() => {
+        setMessages((prev) => {
+          const merged = [...newMessages, ...prev];
+          const unique: Message[] = [];
+          const seen = new Set<number>();
+          for (const m of merged) {
+            if (!seen.has(m.id)) {
+              seen.add(m.id);
+              unique.push(m);
+            }
+          }
+          return unique;
+        });
+      });
+
+      if (container) {
+        const newScrollHeight = container.scrollHeight;
+        container.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+      }
+
+      if (newMessages.length < 50) {
+        setHasMore(false);
+      }
+    } catch (err) {
+      message.error('Không thể tải tin nhắn cũ hơn.');
+    } finally {
+      setLoadingOlder(false);
+      isPrependingRef.current = false;
     }
   };
 
@@ -140,14 +378,39 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   useEffect(() => { activeRoomIdRef.current = activeRoomId; }, [activeRoomId]);
   useEffect(() => { activePrivateChatIdRef.current = activePrivateChatId; }, [activePrivateChatId]);
   useEffect(() => { activeChatTypeRef.current = activeChatType; }, [activeChatType]);
+  useEffect(() => { activeRecipientIdRef.current = activeRecipient?.id ?? null; }, [activeRecipient]);
+  const roomsRef = useRef(rooms);
+  useEffect(() => { roomsRef.current = rooms; }, [rooms]);
+
+  useEffect(() => {
+    const positiveIds = messages.filter(m => m.id > 0).map(m => m.id);
+    lastReceivedMessageIdRef.current = positiveIds.length > 0 ? Math.max(...positiveIds) : null;
+  }, [messages]);
 
   // Effect C: Đổi phòng/hội thoại — tải lịch sử, reset UI, và Leave/Join trên hub.
   useEffect(() => {
     setOnlineUsers([]);
     setTypingUsers([]);
+    setPrivateTypingFrom(null);
     setTranslations({});
     setTranslatingIds({});
+    setReplyingTo(null);
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setHighlightedMsgId(null);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    if (activeChatType === 'room' && activeRoomId !== null) {
+      setMentionRooms((prev) => {
+        if (!prev.has(activeRoomId)) return prev;
+        const next = new Set(prev);
+        next.delete(activeRoomId);
+        return next;
+      });
+    }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (privateTypingTimeoutRef.current) clearTimeout(privateTypingTimeoutRef.current);
     isTypingRef.current = false;
 
     if (activeChatType === 'room' && activeRoomId !== null) {
@@ -166,7 +429,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         }
       }
     } else if (activeChatType === 'private' && activePrivateChatId !== null) {
-      fetchPrivateMessageHistory(activePrivateChatId);
+      fetchPrivateMessageHistory(activePrivateChatId, activeRecipient?.id);
 
       if (connection && connection.state === 'Connected') {
         const prev = prevRoomRef.current;
@@ -199,6 +462,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
           if (prev.some(m => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
         });
+        // Tin tới phòng đang mở → đánh dấu đã đọc (badge giữ 0, advance last_read).
+        if (newMessage.id > 0 && newMessage.roomId) {
+          markConversationRead('room', newMessage.roomId, newMessage.id, newMessage.roomId);
+        }
       }
     });
 
@@ -209,6 +476,45 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
           if (prev.some(m => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
         });
+        if (newMessage.id > 0 && newMessage.privateChatId) {
+          markConversationRead('private', newMessage.privateChatId, newMessage.id);
+        }
+      }
+    });
+
+    // Tín hiệu unread: tăng badge nếu hội thoại KHÔNG đang mở.
+    conn.on('UnreadUpdate', (payload: { type: 'room' | 'private'; id: number }) => {
+      const { type, id } = payload;
+      const isActive = type === 'room'
+        ? (activeChatTypeRef.current === 'room' && id === activeRoomIdRef.current)
+        : (activeChatTypeRef.current === 'private' && id === activeRecipientIdRef.current);
+      if (isActive) return;
+      setUnread((prev) => {
+        const key = type === 'room' ? 'rooms' : 'privateChats';
+        const cur = prev[key][id] || 0;
+        return { ...prev, [key]: { ...prev[key], [id]: cur + 1 } };
+      });
+    });
+
+    // Đồng bộ "đã đọc" giữa các tab của chính user.
+    conn.on('ReadUpdate', (payload: { roomId: number | null; privateChatUserId: number | null }) => {
+      setUnread((prev) => {
+        if (payload.roomId) {
+          const inner = { ...prev.rooms }; delete inner[payload.roomId];
+          return { ...prev, rooms: inner };
+        }
+        if (payload.privateChatUserId) {
+          const inner = { ...prev.privateChats }; delete inner[payload.privateChatUserId];
+          return { ...prev, privateChats: inner };
+        }
+        return prev;
+      });
+    });
+
+    // Lắng nghe trạng thái "Đã xem" từ đối phương trong DM.
+    conn.on('SeenUpdate', (payload: { privateChatUserId: number; lastReadMessageId: number }) => {
+      if (activeChatTypeRef.current === 'private' && activeRecipientIdRef.current === payload.privateChatUserId) {
+        setPartnerLastReadId(payload.lastReadMessageId);
       }
     });
 
@@ -274,6 +580,185 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       });
     });
 
+    conn.on('PrivateTypingUpdate', (p: { fromUserId: number; isTyping: boolean }) => {
+      if (activeChatTypeRef.current !== 'private' || activeRecipientIdRef.current !== p.fromUserId) return;
+      if (privateTypingTimeoutRef.current) clearTimeout(privateTypingTimeoutRef.current);
+      setPrivateTypingFrom(p.isTyping ? p.fromUserId : null);
+      if (p.isTyping) {
+        privateTypingTimeoutRef.current = setTimeout(() => setPrivateTypingFrom(null), 4000);
+      }
+    });
+
+    conn.on('ReactionUpdate', (payload: { messageId: number; emoji: string; count: number; userId: number; reacted: boolean }) => {
+      const currentUserIdVal = currentUserIdRef.current;
+      setReactions((prev) => {
+        const list = prev[payload.messageId] || [];
+        const existingIndex = list.findIndex((r) => r.emoji === payload.emoji);
+        let updatedList: ReactionSummary[];
+        if (payload.count <= 0) {
+          updatedList = list.filter((r) => r.emoji !== payload.emoji);
+        } else if (existingIndex >= 0) {
+          updatedList = list.map((r, i) =>
+            i === existingIndex
+              ? {
+                  ...r,
+                  count: payload.count,
+                  mineReacted: payload.userId === currentUserIdVal ? payload.reacted : r.mineReacted,
+                }
+              : r
+          );
+        } else {
+          updatedList = [
+            ...list,
+            {
+              messageId: payload.messageId,
+              emoji: payload.emoji,
+              count: payload.count,
+              mineReacted: payload.userId === currentUserIdVal ? payload.reacted : false,
+            },
+          ];
+        }
+        return { ...prev, [payload.messageId]: updatedList };
+      });
+    });
+
+    conn.on('MessageEdited', (payload: { messageId: number; newContent: string; editedAt: string }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === payload.messageId
+            ? { ...msg, content: payload.newContent, editedAt: payload.editedAt }
+            : msg
+        )
+      );
+    });
+
+    conn.on('MessageDeleted', (payload: { messageId: number }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === payload.messageId
+            ? { ...msg, content: '', deletedAt: new Date().toISOString() }
+            : msg
+        )
+      );
+    });
+
+    conn.on('MentionUpdate', (payload: { roomId: number; messageId: number; fromUsername: string }) => {
+      if (activeChatTypeRef.current !== 'room' || activeRoomIdRef.current !== payload.roomId) {
+        setMentionRooms((prev) => new Set(prev).add(payload.roomId));
+        const roomObj = roomsRef.current.find((r) => r.id === payload.roomId);
+        const roomName = roomObj ? `#${roomObj.name}` : 'phòng';
+        notification.info({
+          message: 'Thông báo nhắc tên',
+          description: `${payload.fromUsername} đã nhắc bạn ở ${roomName}`,
+          placement: 'topRight',
+        });
+      }
+    });
+
+    // Sau khi kết nối lại: rejoin phòng + refetch tin hội thoại đang mở + refetch unread
+    // (fold resync tối thiểu — tin đến lúc mất mạng không bị bỏ lỡ trên badge).
+    conn.onreconnected(async () => {
+      fetchUnreadCounts();
+      const lastId = lastReceivedMessageIdRef.current;
+
+      if (activeChatTypeRef.current === 'room' && activeRoomIdRef.current !== null) {
+        const roomId = activeRoomIdRef.current;
+        conn.invoke('JoinRoom', roomId).catch(() => {});
+        prevRoomRef.current = roomId;
+
+        if (lastId !== null) {
+          try {
+            let currentAfterId = lastId;
+            let keepFetching = true;
+            let safetyGuard = 0;
+            const accumulated: Message[] = [];
+
+            while (keepFetching && safetyGuard < 20) {
+              safetyGuard++;
+              const response = await api.get(`/rooms/${roomId}/messages?limit=50&afterId=${currentAfterId}`);
+              const batch = response.data as Message[];
+              if (!batch || batch.length === 0) break;
+              accumulated.push(...batch);
+              const maxBatchId = Math.max(...batch.map((m) => m.id));
+              currentAfterId = maxBatchId;
+              if (batch.length < 50) {
+                keepFetching = false;
+              }
+            }
+
+            if (accumulated.length > 0) {
+              flushSync(() => {
+                setMessages((prev) => {
+                  const merged = [...prev, ...accumulated];
+                  const seen = new Set<number>();
+                  const unique: Message[] = [];
+                  for (const m of merged) {
+                    if (!seen.has(m.id)) {
+                      seen.add(m.id);
+                      unique.push(m);
+                    }
+                  }
+                  return unique;
+                });
+              });
+            }
+          } catch (err) {
+            console.error('Lỗi khi lặp tải tin nhắn sau reconnect cho phòng, dùng fallback:', err);
+            fetchMessageHistory(roomId);
+          }
+        } else {
+          fetchMessageHistory(roomId);
+        }
+      } else if (activeChatTypeRef.current === 'private' && activePrivateChatIdRef.current !== null) {
+        const chatId = activePrivateChatIdRef.current;
+        const recipientId = activeRecipientIdRef.current;
+
+        if (lastId !== null) {
+          try {
+            let currentAfterId = lastId;
+            let keepFetching = true;
+            let safetyGuard = 0;
+            const accumulated: Message[] = [];
+
+            while (keepFetching && safetyGuard < 20) {
+              safetyGuard++;
+              const response = await api.get(`/users/private-chat/${chatId}/messages?limit=50&afterId=${currentAfterId}`);
+              const batch = response.data as Message[];
+              if (!batch || batch.length === 0) break;
+              accumulated.push(...batch);
+              const maxBatchId = Math.max(...batch.map((m) => m.id));
+              currentAfterId = maxBatchId;
+              if (batch.length < 50) {
+                keepFetching = false;
+              }
+            }
+
+            if (accumulated.length > 0) {
+              flushSync(() => {
+                setMessages((prev) => {
+                  const merged = [...prev, ...accumulated];
+                  const seen = new Set<number>();
+                  const unique: Message[] = [];
+                  for (const m of merged) {
+                    if (!seen.has(m.id)) {
+                      seen.add(m.id);
+                      unique.push(m);
+                    }
+                  }
+                  return unique;
+                });
+              });
+            }
+          } catch (err) {
+            console.error('Lỗi khi lặp tải tin nhắn sau reconnect cho private-chat, dùng fallback:', err);
+            fetchPrivateMessageHistory(chatId, recipientId ?? undefined);
+          }
+        } else {
+          fetchPrivateMessageHistory(chatId, recipientId ?? undefined);
+        }
+      }
+    });
+
     conn.start()
       .then(() => {
         if (cancelled) return;
@@ -302,6 +787,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       conn.off('PresenceUpdate');
       conn.off('GlobalPresenceUpdate');
       conn.off('TypingUpdate');
+      conn.off('PrivateTypingUpdate');
+      conn.off('UnreadUpdate');
+      conn.off('ReadUpdate');
+      conn.off('SeenUpdate');
+      conn.off('MessageEdited');
+      conn.off('MessageDeleted');
+      conn.off('MentionUpdate');
       prevRoomRef.current = null;
       conn.stop().catch(() => {});
     };
@@ -314,18 +806,174 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   useEffect(() => {
     const isNewMessage = messages.length !== prevMessageCountRef.current;
     prevMessageCountRef.current = messages.length;
-    messageEndRef.current?.scrollIntoView({ behavior: isNewMessage ? 'smooth' : 'auto' });
+    if (!isPrependingRef.current) {
+      messageEndRef.current?.scrollIntoView({ behavior: isNewMessage ? 'smooth' : 'auto' });
+    }
   }, [messages]);
+
+  // Thiết lập Intersection Observer cho phân trang cuộn vô hạn lên đầu
+  useEffect(() => {
+    if (!hasMore || loadingOlder) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadOlderMessages();
+        }
+      },
+      {
+        root: messagesContainerRef.current,
+        rootMargin: '100px 0px 0px 0px',
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loadingOlder, oldestMessageId, activeRoomId, activePrivateChatId, activeChatType]);
+
+  // Tổng unread → tiêu đề tab "(N) Nexivra Chat" để thấy khi tab ở nền.
+  useEffect(() => {
+    const total =
+      Object.values(unread.rooms).reduce((a, b) => a + b, 0) +
+      Object.values(unread.privateChats).reduce((a, b) => a + b, 0);
+    document.title = total > 0 ? `(${total}) Nexivra Chat` : 'Nexivra Chat';
+  }, [unread]);
 
   const sendTyping = (isTyping: boolean) => {
     const conn = connectionRef.current;
-    const roomId = activeRoomIdRef.current;
-    if (!conn || conn.state !== 'Connected' || roomId === null || activeChatTypeRef.current !== 'room') return;
-    conn.invoke('Typing', roomId, isTyping).catch(() => {});
+    if (!conn || conn.state !== 'Connected') return;
+    if (activeChatTypeRef.current === 'room') {
+      const roomId = activeRoomIdRef.current;
+      if (roomId !== null) {
+        conn.invoke('Typing', roomId, isTyping).catch(() => {});
+      }
+    } else if (activeChatTypeRef.current === 'private') {
+      const recipientId = activeRecipientIdRef.current;
+      if (recipientId !== null) {
+        conn.invoke('TypingPrivate', recipientId, isTyping).catch(() => {});
+      }
+    }
+  };
+
+  const filteredMentionUsers = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const queryLower = mentionQuery.toLowerCase();
+    const list = users.filter(
+      (u) => u.username.toLowerCase() !== username.toLowerCase() && u.username.toLowerCase().includes(queryLower)
+    );
+    return list.sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
+  }, [mentionQuery, users, username]);
+
+  const handleSelectMentionUser = (targetUsername: string) => {
+    if (mentionIndex === -1) return;
+    const before = inputText.substring(0, mentionIndex);
+    const newText = `${before}@${targetUsername} `;
+    setInputText(newText);
+    setMentionQuery(null);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    const trimmed = val.trim();
+    if (trimmed.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        let res;
+        if (activeChatType === 'room' && activeRoomId !== null) {
+          res = await api.get(`/rooms/${activeRoomId}/messages/search?q=${encodeURIComponent(trimmed)}`);
+        } else if (activeChatType === 'private' && activePrivateChatId !== null) {
+          res = await api.get(`/users/private-chat/${activePrivateChatId}/messages/search?q=${encodeURIComponent(trimmed)}`);
+        }
+        if (res) {
+          setSearchResults(res.data);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tìm kiếm tin nhắn:', err);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+  };
+
+  const triggerHighlight = (msgId: number) => {
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    setHighlightedMsgId(msgId);
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedMsgId(null);
+    }, 2000);
+  };
+
+  const handleJumpToMessage = async (msgId: number) => {
+    setSearchOpen(false);
+    const existingIndex = messages.findIndex((m) => m.id === msgId);
+    if (existingIndex !== -1) {
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`msg-${msgId}`);
+        if (el) {
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          triggerHighlight(msgId);
+        }
+      });
+    } else {
+      try {
+        let response;
+        if (activeChatType === 'room' && activeRoomId !== null) {
+          response = await api.get(`/rooms/${activeRoomId}/messages?limit=50&beforeId=${msgId + 1}`);
+        } else if (activeChatType === 'private' && activePrivateChatId !== null) {
+          response = await api.get(`/users/private-chat/${activePrivateChatId}/messages?limit=50&beforeId=${msgId + 1}`);
+        }
+        if (response && response.data) {
+          const fetchedMsgs: Message[] = response.data;
+          flushSync(() => {
+            setMessages(fetchedMsgs);
+            setHasMore(fetchedMsgs.length >= 50);
+            fetchReactionsForMessages(fetchedMsgs);
+          });
+          requestAnimationFrame(() => {
+            const el = document.getElementById(`msg-${msgId}`);
+            if (el) {
+              el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+            triggerHighlight(msgId);
+          });
+        }
+      } catch (err) {
+        message.error('Không thể nạp tin nhắn cũ.');
+      }
+    }
   };
 
   const handleInputChange = (value: string) => {
     setInputText(value);
+    if (activeChatType === 'room') {
+      const lastAtIndex = value.lastIndexOf('@');
+      if (lastAtIndex !== -1 && (lastAtIndex === 0 || value[lastAtIndex - 1] === ' ')) {
+        const query = value.substring(lastAtIndex + 1);
+        if (!query.includes(' ')) {
+          setMentionQuery(query);
+          setMentionIndex(lastAtIndex);
+        } else {
+          setMentionQuery(null);
+        }
+      } else {
+        setMentionQuery(null);
+      }
+    } else {
+      setMentionQuery(null);
+    }
+
     if (!isTypingRef.current) {
       isTypingRef.current = true;
       sendTyping(true);
@@ -337,18 +985,61 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     }, 2000);
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      message.error('Kích thước file không được vượt quá 10 MB.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
+    if (ext === '.svg' || !allowedExts.includes(ext)) {
+      message.error('Loại file không được hỗ trợ (Tuyệt đối cấm SVG. Chỉ chấp nhận JPG, PNG, GIF, WEBP, PDF).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPendingAttachment(res.data);
+      message.success('Tải file đính kèm thành công!');
+    } catch (err: any) {
+      const errorMsg = err.response?.data || 'Không thể tải file đính kèm lên máy chủ.';
+      message.error(errorMsg);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   // 5. Gửi tin nhắn qua SignalR Hub
   const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend !== undefined ? textToSend : inputText;
-    if (!text.trim() || !connection) return;
+    if ((!text.trim() && !pendingAttachment) || !connection) return;
 
     try {
+      const replyToId = replyingTo?.id;
+      const attUrl = pendingAttachment?.url ?? null;
+      const attName = pendingAttachment?.name ?? null;
+      const attType = pendingAttachment?.type ?? null;
+      const attSize = pendingAttachment?.size ?? null;
+
       if (activeChatType === 'room') {
         if (activeRoomId === null) return;
-        await connection.invoke('SendMessage', activeRoomId, text.trim());
+        await connection.invoke('SendMessage', activeRoomId, text.trim(), replyToId, attUrl, attName, attType, attSize);
       } else {
         if (activePrivateChatId === null || !activeRecipient) return;
-        await connection.invoke('SendPrivateMessage', activeRecipient.id, text.trim());
+        await connection.invoke('SendPrivateMessage', activeRecipient.id, text.trim(), replyToId, attUrl, attName, attType, attSize);
       }
 
       if (isTypingRef.current) {
@@ -359,6 +1050,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       if (textToSend === undefined) {
         setInputText('');
       }
+      setReplyingTo(null);
+      setMentionQuery(null);
+      setPendingAttachment(null);
     } catch (err) {
       message.error('Không thể gửi tin nhắn.');
     }
@@ -423,7 +1117,6 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         rooms={rooms}
         users={users}
         activeRoomId={activeRoomId}
-        activePrivateChatId={activePrivateChatId}
         activeChatType={activeChatType}
         onSelectRoom={handleSelectRoom}
         onSelectUser={handleSelectUser}
@@ -431,6 +1124,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         onLogout={onLogout}
         username={username}
         onOpenProfile={handleOpenProfile}
+        unreadRooms={unread.rooms}
+        unreadPrivateChats={unread.privateChats}
+        activePrivateUserId={activeRecipient?.id ?? null}
+        mentionRooms={mentionRooms}
       />
 
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-surface)', position: 'relative' }}>
@@ -475,8 +1172,85 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               </div>
             )}
           </div>
-          <ThemeToggle />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Button
+              icon={<SearchOutlined />}
+              onClick={() => {
+                setSearchOpen((prev) => !prev);
+                if (searchOpen) {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }
+              }}
+              title="Tìm kiếm tin nhắn trong hội thoại"
+              style={{ color: searchOpen ? '#0D9488' : undefined, borderColor: searchOpen ? '#0D9488' : undefined }}
+            />
+            <ThemeToggle />
+          </div>
         </div>
+
+        {/* Search Panel Overlay */}
+        {searchOpen && (
+          <div style={{
+            position: 'absolute',
+            top: '70px',
+            right: '20px',
+            width: '320px',
+            backgroundColor: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+            zIndex: 100,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}>
+            <div style={{ padding: '10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Input
+                placeholder="Tìm từ khóa (≥ 2 ký tự)..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                autoFocus
+                allowClear
+              />
+              <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); }} />
+            </div>
+            <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '6px' }}>
+              {searching ? (
+                <div style={{ textAlign: 'center', padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>Đang tìm kiếm...</div>
+              ) : searchQuery.trim().length < 2 ? (
+                <div style={{ textAlign: 'center', padding: '12px', color: 'var(--text-muted)', fontSize: '12px' }}>Nhập ít nhất 2 ký tự để tìm kiếm</div>
+              ) : searchResults.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>Không tìm thấy kết quả</div>
+              ) : (
+                searchResults.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleJumpToMessage(item.id)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      transition: 'background 0.15s',
+                      marginBottom: '4px',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary-soft)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span style={{ fontWeight: 600, color: '#0D9488' }}>{item.senderName}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{new Date(item.createdAt).toLocaleTimeString()}</span>
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.content.length > 80 ? `${item.content.substring(0, 80)}…` : item.content}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Floating Notification Banner */}
         <div style={{ position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '4px', pointerEvents: 'none' }}>
@@ -488,44 +1262,169 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         </div>
 
         {/* Message Area */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: 'var(--bg-canvas)' }}>
+        <div ref={messagesContainerRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: 'var(--bg-canvas)' }}>
+          {messages.length > 0 && (
+            <>
+              {hasMore && (
+                <div ref={sentinelRef} style={{ height: '5px', margin: '-5px 0' }} />
+              )}
+              {hasMore && (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
+                  <Button type="link" loading={loadingOlder} onClick={loadOlderMessages} style={{ color: 'var(--primary)' }}>
+                    Tải tin nhắn cũ hơn
+                  </Button>
+                </div>
+              )}
+              {!hasMore && (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px 0', fontSize: '12px' }}>
+                  Đầu hội thoại
+                </div>
+              )}
+            </>
+          )}
+
           {messages.length === 0 ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '14px' }}>
               Chưa có tin nhắn — hãy bắt đầu trò chuyện 👋
             </div>
           ) : (
-            messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                msg={msg}
-                currentUsername={username}
-                translation={translations[msg.id]}
-                isTranslating={!!translatingIds[msg.id]}
-                onTranslate={handleTranslateMessage}
-                onHideTranslation={handleHideTranslation}
-                onOpenSenderProfile={handleOpenSenderProfile}
-              />
-            ))
+            (() => {
+              let latestMyId: number | null = null;
+              if (activeChatType === 'private') {
+                for (let i = messages.length - 1; i >= 0; i--) {
+                  const m = messages[i];
+                  const isMine = m.senderId != null ? m.senderId === currentUserId : m.senderName === username;
+                  if (isMine) {
+                    latestMyId = m.id;
+                    break;
+                  }
+                }
+              }
+              return messages.map((msg) => {
+                const isLatestMy = msg.id === latestMyId;
+                const receiptStatus = isLatestMy ? (msg.id <= partnerLastReadId ? 'seen' : 'sent') : undefined;
+                return (
+                  <MessageBubble
+                    key={msg.id}
+                    msg={msg}
+                    currentUsername={username}
+                    translation={translations[msg.id]}
+                    isTranslating={!!translatingIds[msg.id]}
+                    receiptStatus={receiptStatus}
+                    reactions={reactions[msg.id]}
+                    highlightedMsgId={highlightedMsgId}
+                    onTranslate={handleTranslateMessage}
+                    onHideTranslation={handleHideTranslation}
+                    onOpenSenderProfile={handleOpenSenderProfile}
+                    onToggleReaction={handleToggleReaction}
+                    onReply={handleReply}
+                    onEdit={handleEditMessage}
+                    onDelete={handleDeleteMessage}
+                  />
+                );
+              });
+            })()
           )}
           {activeChatType === 'room' && typingUsers.length > 0 && (
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
               {typingUsers.join(', ')} đang gõ…
             </div>
           )}
+          {activeChatType === 'private' && privateTypingFrom !== null && (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              {users.find((u) => u.id === privateTypingFrom)?.username ?? 'Đối phương'} đang gõ…
+            </div>
+          )}
           <div ref={messageEndRef} />
         </div>
 
         {/* Input Area */}
-        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', gap: '10px' }}>
-          <Input
-            value={inputText}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onPressEnter={() => handleSendMessage()}
-            placeholder={activeChatType === 'room' ? "Nhập tin nhắn… (gõ @copilot để hỏi AI)" : "Nhập tin nhắn..."}
-          />
-          <Button type="primary" icon={<SendOutlined />} onClick={() => handleSendMessage()} style={{ fontWeight: 500 }}>
-            Gửi
-          </Button>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: '10px', position: 'relative' }}>
+          {mentionQuery !== null && filteredMentionUsers.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              bottom: '60px',
+              left: '20px',
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              maxHeight: '180px',
+              overflowY: 'auto',
+              zIndex: 100,
+              width: '220px',
+              padding: '4px 0'
+            }}>
+              {filteredMentionUsers.map((u) => (
+                <div
+                  key={u.id}
+                  onClick={() => handleSelectMentionUser(u.username)}
+                  style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '13px',
+                    color: 'var(--text-primary)',
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary-soft)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  <span style={{ fontWeight: 600 }}>@{u.username}</span>
+                  <span style={{ fontSize: '10px', color: u.isOnline ? '#0D9488' : 'var(--text-muted)' }}>
+                    {u.isOnline ? '● online' : 'offline'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {replyingTo && (
+            <div style={{ padding: '6px 12px', backgroundColor: 'var(--bg-elevated)', borderLeft: '3px solid #0D9488', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '8px' }}>
+                <span style={{ fontWeight: 600, color: '#0D9488' }}>Đang trả lời @{replyingTo.senderName}: </span>
+                <span style={{ color: 'var(--text-secondary)' }}>{replyingTo.content.substring(0, 80)}</span>
+              </div>
+              <Button type="text" size="small" onClick={() => setReplyingTo(null)} style={{ color: 'var(--text-muted)' }}>✕</Button>
+            </div>
+          )}
+          {pendingAttachment && (
+            <div style={{ padding: '6px 12px', backgroundColor: 'var(--bg-elevated)', borderLeft: '3px solid #0D9488', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', marginRight: '8px' }}>
+                <FileOutlined style={{ color: '#0D9488' }} />
+                <span style={{ fontWeight: 600, color: '#0D9488' }}>File đính kèm: </span>
+                <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {pendingAttachment.name} ({pendingAttachment.size < 1024 * 1024 ? `${(pendingAttachment.size / 1024).toFixed(1)} KB` : `${(pendingAttachment.size / (1024 * 1024)).toFixed(1)} MB`})
+                </span>
+              </div>
+              <Button type="text" size="small" onClick={() => setPendingAttachment(null)} style={{ color: 'var(--text-muted)' }}>✕</Button>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+              accept=".jpg,.jpeg,.png,.gif,.webp,.pdf"
+            />
+            <Button
+              icon={<PaperClipOutlined />}
+              loading={isUploading}
+              onClick={() => fileInputRef.current?.click()}
+              title="Đính kèm ảnh hoặc file tài liệu (≤10MB)"
+            />
+            <Input
+              value={inputText}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onPressEnter={() => handleSendMessage()}
+              placeholder={activeChatType === 'room' ? "Nhập tin nhắn… (gõ @copilot để hỏi AI)" : "Nhập tin nhắn..."}
+            />
+            <Button type="primary" icon={<SendOutlined />} onClick={() => handleSendMessage()} style={{ fontWeight: 500 }}>
+              Gửi
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -6,18 +6,21 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace NexivraChatBackend.Services
 {
     public class AiService
     {
         private readonly HttpClient _httpClient;
+        private readonly ILogger<AiService> _logger;
         private readonly string _apiKey;
 
-        public AiService(HttpClient httpClient, IConfiguration config)
+        public AiService(HttpClient httpClient, IConfiguration config, ILogger<AiService> logger)
         {
             _httpClient = httpClient;
-            var configKey = config["Gemini:ApiKey"];
+            _logger = logger;
+            var configKey = config["Gemini:ApiKey"] ?? config["Gemini__ApiKey"];
             var envKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
             _apiKey = !string.IsNullOrEmpty(configKey) ? configKey : (!string.IsNullOrEmpty(envKey) ? envKey : string.Empty);
         }
@@ -72,6 +75,7 @@ namespace NexivraChatBackend.Services
             {
                 if (!response.IsSuccessStatusCode)
                 {
+                    _logger.LogError("Lỗi kết nối Gemini Stream API: {StatusCode}", response.StatusCode);
                     yield return $"[Lỗi kết nối Gemini API: {response.StatusCode}]";
                     yield break;
                 }
@@ -109,9 +113,9 @@ namespace NexivraChatBackend.Services
                                 }
                             }
                         }
-                        catch
+                        catch (Exception ex)
                         {
-                            // Bỏ qua chunk JSON không hợp lệ (hiếm gặp trong SSE)
+                            _logger.LogWarning(ex, "Lỗi khi parse chunk JSON SSE từ Gemini");
                         }
 
                         if (!string.IsNullOrEmpty(textChunk))
@@ -161,6 +165,7 @@ namespace NexivraChatBackend.Services
                 var response = await _httpClient.PostAsync(url, content);
                 if (!response.IsSuccessStatusCode)
                 {
+                    _logger.LogError("Lỗi kết nối Gemini GenerateContent API: {StatusCode}", response.StatusCode);
                     return string.Empty;
                 }
 
@@ -182,8 +187,9 @@ namespace NexivraChatBackend.Services
                 }
                 return string.Empty;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Ngoại lệ khi gọi Gemini GenerateContent API");
                 return string.Empty;
             }
         }

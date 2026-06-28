@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
-import { Button, Modal, Form, Input, message } from 'antd';
-import { PlusOutlined, LogoutOutlined, CommentOutlined, UserOutlined } from '@ant-design/icons';
+import { Button, Modal, Form, Input, message, Badge } from 'antd';
+import { PlusOutlined, LogoutOutlined, CommentOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import { Logo } from './Logo';
 
@@ -21,7 +21,6 @@ interface RoomSidebarProps {
   rooms: Room[];
   users: SidebarUser[];
   activeRoomId: number | null;
-  activePrivateChatId: number | null;
   activeChatType: 'room' | 'private';
   onSelectRoom: (roomId: number) => void;
   onSelectUser: (userId: number) => void;
@@ -29,20 +28,29 @@ interface RoomSidebarProps {
   onLogout: () => void;
   username: string;
   onOpenProfile: (userId: number) => void;
+  // Unread: phòng key theo roomId, DM key theo id người đối thoại.
+  unreadRooms?: Record<number, number>;
+  unreadPrivateChats?: Record<number, number>;
+  // id người đối thoại của DM đang mở (để ẩn badge hội thoại active).
+  activePrivateUserId?: number | null;
+  mentionRooms?: Set<number>;
 }
 
 export const RoomSidebar: React.FC<RoomSidebarProps> = ({
   rooms,
   users,
   activeRoomId,
-  activePrivateChatId,
   activeChatType,
   onSelectRoom,
   onSelectUser,
   onRoomCreated,
   onLogout,
   username,
-  onOpenProfile
+  onOpenProfile,
+  unreadRooms = {},
+  unreadPrivateChats = {},
+  activePrivateUserId = null,
+  mentionRooms = new Set(),
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -90,10 +98,14 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
           </div>
           {rooms.map((room) => {
             const isActive = activeChatType === 'room' && room.id === activeRoomId;
+            const roomUnread = isActive ? 0 : (unreadRooms[room.id] || 0);
+            const hasMention = !isActive && mentionRooms.has(room.id);
             return (
               <div
                 key={room.id}
                 onClick={() => onSelectRoom(room.id)}
+                role="button"
+                aria-label={roomUnread > 0 ? `# ${room.name}, ${roomUnread} tin chưa đọc` : `# ${room.name}`}
                 style={{
                   padding: '9px 12px',
                   cursor: 'pointer',
@@ -109,9 +121,33 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
                 }}
               >
                 <CommentOutlined />
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <div style={{ fontWeight: isActive ? 600 : 400, fontSize: '13px' }}># {room.name}</div>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  {/* Phòng có tin chưa đọc: chữ đậm hơn (tín hiệu nhẹ, không to như DM) */}
+                  <div style={{ fontWeight: isActive || roomUnread > 0 ? 600 : 400, fontSize: '13px', color: roomUnread > 0 && !isActive ? 'var(--text-primary)' : undefined }}># {room.name}</div>
                 </div>
+                {hasMention && (
+                  <span
+                    title="Có ai đó vừa nhắc bạn trong phòng này"
+                    style={{
+                      padding: '0 5px',
+                      borderRadius: '10px',
+                      backgroundColor: '#0D9488',
+                      color: '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      flexShrink: 0,
+                      lineHeight: '16px'
+                    }}
+                  >
+                    @
+                  </span>
+                )}
+                {roomUnread > 0 && !hasMention && (
+                  <span
+                    aria-hidden="true"
+                    style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--primary)', flexShrink: 0 }}
+                  />
+                )}
               </div>
             );
           })}
@@ -123,11 +159,14 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
             Tin nhắn riêng
           </div>
           {users.map((u) => {
-            const isActive = activeChatType === 'private' && u.id === activePrivateChatId;
+            const isActive = activeChatType === 'private' && u.id === activePrivateUserId;
+            const dmUnread = isActive ? 0 : (unreadPrivateChats[u.id] || 0);
             return (
               <div
                 key={u.id}
                 onClick={() => onSelectUser(u.id)}
+                role="button"
+                aria-label={dmUnread > 0 ? `${u.username}, ${dmUnread} tin chưa đọc` : u.username}
                 style={{
                   padding: '9px 12px',
                   cursor: 'pointer',
@@ -144,21 +183,29 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                  <UserOutlined />
-                  <span style={{ fontWeight: isActive ? 600 : 400, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {/* Chấm online cạnh tên (nhường slot phải cho badge unread) */}
+                  <span
+                    style={{
+                      width: '7px',
+                      height: '7px',
+                      borderRadius: '50%',
+                      backgroundColor: u.isOnline ? 'var(--primary)' : 'var(--text-muted)',
+                      display: 'inline-block',
+                      flexShrink: 0
+                    }}
+                  />
+                  <span style={{ fontWeight: isActive || dmUnread > 0 ? 600 : 400, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: dmUnread > 0 && !isActive ? 'var(--text-primary)' : undefined }}>
                     {u.username}
                   </span>
                 </div>
-                <span
-                  style={{
-                    width: '7px',
-                    height: '7px',
-                    borderRadius: '50%',
-                    backgroundColor: u.isOnline ? 'var(--primary)' : 'var(--text-muted)',
-                    display: 'inline-block',
-                    flexShrink: 0
-                  }}
-                />
+                {/* DM "to tiếng" hơn phòng: badge SỐ (teal đậm để chữ trắng đủ tương phản) */}
+                {dmUnread > 0 && (
+                  <Badge
+                    count={dmUnread}
+                    overflowCount={99}
+                    style={{ backgroundColor: '#0F766E', flexShrink: 0 }}
+                  />
+                )}
               </div>
             );
           })}
