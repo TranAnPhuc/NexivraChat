@@ -11,6 +11,16 @@
 - [x] GĐ4.5 Trạng thái Đã gửi/Đã xem (DM trước; group defer).
 - [ ] GĐ4.6 Web Push/OS notification (mục lớn — Claude spec trước khi code).
 
+## Polish từ review GĐ4 (Claude, 2026-06-28) — không chặn
+- [x] #1 Resync >50 tin: hiện chỉ kéo 1 lô 50 sau reconnect (`ChatView.tsx:471,495`) → lặp `afterId` tới khi lô <limit.
+- [ ] #2 Receipts dùng `senderName === username` (`ChatView.tsx:800`) thay vì `senderId` (4.4) — đổi khi tiện (cần userId của mình ở frontend).
+- [ ] #3 Xóa `MessageRepository.GetOldMessages` (dead code, giờ còn thêm sender_id vào).
+- [x] #4 Dedupe resync dùng `findIndex` trong `filter` (O(n²)) → dùng `Set` như `loadOlderMessages`.
+- [ ] Chạy `dotnet test` với Docker bật để xác nhận 13 test integration xanh.
+
+## GĐ5 — tính năng giống Zalo/Messenger/Telegram
+- [ ] GĐ5.1 Reactions (emoji) — spec: `docs/superpowers/plans/roadmap-foundation.md` mục GĐ5.1. **(tiếp theo sau #1)**
+
 ## Defer từ review unread-badges
 - [ ] Web Push / OS notification — chống bỏ lỡ khi app đóng (CEO #3). Giá trị cao, follow-up lớn.
 - [ ] Thêm `sender_id` vào bảng `messages` — bỏ phụ thuộc `sender_name` (string) cho read-tracking/receipts/mentions (CEO #5, Eng H2). Migration riêng.

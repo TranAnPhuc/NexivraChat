@@ -458,7 +458,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
 
     // Sau khi kết nối lại: rejoin phòng + refetch tin hội thoại đang mở + refetch unread
     // (fold resync tối thiểu — tin đến lúc mất mạng không bị bỏ lỡ trên badge).
-    conn.onreconnected(() => {
+    conn.onreconnected(async () => {
       fetchUnreadCounts();
       const lastId = lastReceivedMessageIdRef.current;
 
@@ -468,22 +468,45 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         prevRoomRef.current = roomId;
 
         if (lastId !== null) {
-          api.get(`/rooms/${roomId}/messages?limit=50&afterId=${lastId}`)
-            .then((response) => {
-              const newMessages = response.data as Message[];
+          try {
+            let currentAfterId = lastId;
+            let keepFetching = true;
+            let safetyGuard = 0;
+            const accumulated: Message[] = [];
+
+            while (keepFetching && safetyGuard < 20) {
+              safetyGuard++;
+              const response = await api.get(`/rooms/${roomId}/messages?limit=50&afterId=${currentAfterId}`);
+              const batch = response.data as Message[];
+              if (!batch || batch.length === 0) break;
+              accumulated.push(...batch);
+              const maxBatchId = Math.max(...batch.map((m) => m.id));
+              currentAfterId = maxBatchId;
+              if (batch.length < 50) {
+                keepFetching = false;
+              }
+            }
+
+            if (accumulated.length > 0) {
               flushSync(() => {
                 setMessages((prev) => {
-                  const merged = [...prev, ...newMessages];
-                  return merged.filter((msg, index, self) =>
-                    self.findIndex(m => m.id === msg.id) === index
-                  );
+                  const merged = [...prev, ...accumulated];
+                  const seen = new Set<number>();
+                  const unique: Message[] = [];
+                  for (const m of merged) {
+                    if (!seen.has(m.id)) {
+                      seen.add(m.id);
+                      unique.push(m);
+                    }
+                  }
+                  return unique;
                 });
               });
-            })
-            .catch((err) => {
-              console.error('Lỗi khi tải tin nhắn sau reconnect cho phòng, dùng fallback:', err);
-              fetchMessageHistory(roomId);
-            });
+            }
+          } catch (err) {
+            console.error('Lỗi khi lặp tải tin nhắn sau reconnect cho phòng, dùng fallback:', err);
+            fetchMessageHistory(roomId);
+          }
         } else {
           fetchMessageHistory(roomId);
         }
@@ -492,22 +515,45 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         const recipientId = activeRecipientIdRef.current;
 
         if (lastId !== null) {
-          api.get(`/users/private-chat/${chatId}/messages?limit=50&afterId=${lastId}`)
-            .then((response) => {
-              const newMessages = response.data as Message[];
+          try {
+            let currentAfterId = lastId;
+            let keepFetching = true;
+            let safetyGuard = 0;
+            const accumulated: Message[] = [];
+
+            while (keepFetching && safetyGuard < 20) {
+              safetyGuard++;
+              const response = await api.get(`/users/private-chat/${chatId}/messages?limit=50&afterId=${currentAfterId}`);
+              const batch = response.data as Message[];
+              if (!batch || batch.length === 0) break;
+              accumulated.push(...batch);
+              const maxBatchId = Math.max(...batch.map((m) => m.id));
+              currentAfterId = maxBatchId;
+              if (batch.length < 50) {
+                keepFetching = false;
+              }
+            }
+
+            if (accumulated.length > 0) {
               flushSync(() => {
                 setMessages((prev) => {
-                  const merged = [...prev, ...newMessages];
-                  return merged.filter((msg, index, self) =>
-                    self.findIndex(m => m.id === msg.id) === index
-                  );
+                  const merged = [...prev, ...accumulated];
+                  const seen = new Set<number>();
+                  const unique: Message[] = [];
+                  for (const m of merged) {
+                    if (!seen.has(m.id)) {
+                      seen.add(m.id);
+                      unique.push(m);
+                    }
+                  }
+                  return unique;
                 });
               });
-            })
-            .catch((err) => {
-              console.error('Lỗi khi tải tin nhắn sau reconnect cho private-chat, dùng fallback:', err);
-              fetchPrivateMessageHistory(chatId, recipientId ?? undefined);
-            });
+            }
+          } catch (err) {
+            console.error('Lỗi khi lặp tải tin nhắn sau reconnect cho private-chat, dùng fallback:', err);
+            fetchPrivateMessageHistory(chatId, recipientId ?? undefined);
+          }
         } else {
           fetchPrivateMessageHistory(chatId, recipientId ?? undefined);
         }
