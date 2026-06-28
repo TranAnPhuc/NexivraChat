@@ -1,0 +1,16 @@
+name: keep-warm
+
+# Ping backend /health every ~10 min so the Render free instance does not
+# spin down after 15 min idle (avoids the ~50s cold-start for remote users).
+# Spec: deploy.md mục 4.1.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: curl -fsS --max-time 60 https://nexivrachat.onrender.com/health || true
