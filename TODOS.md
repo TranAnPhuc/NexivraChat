@@ -18,6 +18,10 @@
 - [x] #4 Dedupe resync dùng `findIndex` trong `filter` (O(n²)) → dùng `Set` như `loadOlderMessages`.
 - [ ] Chạy `dotnet test` với Docker bật để xác nhận 13 test integration xanh.
 
+## Polish từ review GĐ5.1 (Claude, 2026-06-28)
+- [x] #A Reactions thiếu kiểm tra participant — `ReactionsController.GetReactions` + Hub `ToggleReaction` cho DM.
+- [ ] #B Reactions chưa có long-press mobile (chỉ hover desktop) — defer.
+
 ## GĐ5 — tính năng giống Zalo/Messenger/Telegram
 - [x] GĐ5.1 Reactions (emoji) — spec: `docs/superpowers/plans/roadmap-foundation.md` mục GĐ5.1.
 

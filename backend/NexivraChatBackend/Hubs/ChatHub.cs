@@ -277,24 +277,35 @@ namespace NexivraChatBackend.Hubs
                 throw new HubException("Không xác định được danh tính người dùng.");
             }
 
-            var (reacted, count) = await _reactionRepository.ToggleReaction(messageId, userId, emoji);
             var conv = await _reactionRepository.LookupConversation(messageId);
+            if (conv == null)
+            {
+                throw new HubException("Không tìm thấy tin nhắn.");
+            }
+
+            if (conv.PrivateChatId.HasValue)
+            {
+                var chat = await _privateChatRepository.GetById(conv.PrivateChatId.Value);
+                if (chat == null || (chat.User1Id != userId && chat.User2Id != userId))
+                {
+                    throw new HubException("Bạn không có quyền với hội thoại này.");
+                }
+            }
+
+            var (reacted, count) = await _reactionRepository.ToggleReaction(messageId, userId, emoji);
 
             var payload = new { messageId, emoji, count, userId, reacted };
 
-            if (conv != null)
+            if (conv.RoomId.HasValue)
             {
-                if (conv.RoomId.HasValue)
+                await Clients.Group(conv.RoomId.Value.ToString()).SendAsync("ReactionUpdate", payload);
+            }
+            else if (conv.PrivateChatId.HasValue)
+            {
+                var chat = await _privateChatRepository.GetById(conv.PrivateChatId.Value);
+                if (chat != null)
                 {
-                    await Clients.Group(conv.RoomId.Value.ToString()).SendAsync("ReactionUpdate", payload);
-                }
-                else if (conv.PrivateChatId.HasValue)
-                {
-                    var chat = await _privateChatRepository.GetById(conv.PrivateChatId.Value);
-                    if (chat != null)
-                    {
-                        await Clients.Users(chat.User1Id.ToString(), chat.User2Id.ToString()).SendAsync("ReactionUpdate", payload);
-                    }
+                    await Clients.Users(chat.User1Id.ToString(), chat.User2Id.ToString()).SendAsync("ReactionUpdate", payload);
                 }
             }
         }

@@ -62,11 +62,20 @@ namespace NexivraChatBackend.Repositories
             using (var connection = _context.CreateConnection())
             {
                 var query = @"
-                    SELECT message_id AS MessageId, emoji AS Emoji, COUNT(*) AS Count,
-                           BOOL_OR(user_id = @currentUserId) AS MineReacted
-                    FROM message_reactions
-                    WHERE message_id = ANY(@ids)
-                    GROUP BY message_id, emoji;";
+                    SELECT mr.message_id AS MessageId, mr.emoji AS Emoji, COUNT(*) AS Count,
+                           BOOL_OR(mr.user_id = @currentUserId) AS MineReacted
+                    FROM message_reactions mr
+                    JOIN messages m ON mr.message_id = m.id
+                    WHERE mr.message_id = ANY(@ids)
+                      AND (
+                        m.room_id IS NOT NULL 
+                        OR EXISTS (
+                          SELECT 1 FROM private_chats pc 
+                          WHERE pc.id = m.private_chat_id 
+                            AND (pc.user1_id = @currentUserId OR pc.user2_id = @currentUserId)
+                        )
+                      )
+                    GROUP BY mr.message_id, mr.emoji;";
 
                 return (await connection.QueryAsync<ReactionSummary>(query, new { ids, currentUserId })).ToList();
             }
