@@ -33,6 +33,7 @@ interface RoomSidebarProps {
   unreadPrivateChats?: Record<number, number>;
   // id người đối thoại của DM đang mở (để ẩn badge hội thoại active).
   activePrivateUserId?: number | null;
+  mentionRooms?: Set<number>;
 }
 
 export const RoomSidebar: React.FC<RoomSidebarProps> = ({
@@ -48,7 +49,8 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
   onOpenProfile,
   unreadRooms = {},
   unreadPrivateChats = {},
-  activePrivateUserId = null
+  activePrivateUserId = null,
+  mentionRooms = new Set(),
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -97,6 +99,7 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
           {rooms.map((room) => {
             const isActive = activeChatType === 'room' && room.id === activeRoomId;
             const roomUnread = isActive ? 0 : (unreadRooms[room.id] || 0);
+            const hasMention = !isActive && mentionRooms.has(room.id);
             return (
               <div
                 key={room.id}
@@ -122,7 +125,24 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
                   {/* Phòng có tin chưa đọc: chữ đậm hơn (tín hiệu nhẹ, không to như DM) */}
                   <div style={{ fontWeight: isActive || roomUnread > 0 ? 600 : 400, fontSize: '13px', color: roomUnread > 0 && !isActive ? 'var(--text-primary)' : undefined }}># {room.name}</div>
                 </div>
-                {roomUnread > 0 && (
+                {hasMention && (
+                  <span
+                    title="Có ai đó vừa nhắc bạn trong phòng này"
+                    style={{
+                      padding: '0 5px',
+                      borderRadius: '10px',
+                      backgroundColor: '#0D9488',
+                      color: '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      flexShrink: 0,
+                      lineHeight: '16px'
+                    }}
+                  >
+                    @
+                  </span>
+                )}
+                {roomUnread > 0 && !hasMention && (
                   <span
                     aria-hidden="true"
                     style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--primary)', flexShrink: 0 }}

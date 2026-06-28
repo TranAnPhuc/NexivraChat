@@ -37,6 +37,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   const isMe = msg.senderName === currentUsername;
   const isAi = msg.isAi;
   const isDeleted = !!msg.deletedAt;
+  const isMentionedMe = !isMe && !isDeleted && new RegExp(`@${currentUsername}\\b`, 'i').test(msg.content);
   const [showPicker, setShowPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(msg.content);
@@ -56,6 +57,31 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
       cancelText: 'Hủy',
       okButtonProps: { danger: true },
       onOk: () => onDelete(msg.id),
+    });
+  };
+
+  const renderFormattedContent = (text: string) => {
+    const parts = text.split(/(@[A-Za-z0-9_]+)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('@')) {
+        const usernameTag = part.substring(1);
+        const isSelfTag = usernameTag.toLowerCase() === currentUsername.toLowerCase();
+        return (
+          <span
+            key={index}
+            style={{
+              color: '#0D9488',
+              fontWeight: isSelfTag ? 700 : 600,
+              backgroundColor: isSelfTag ? 'rgba(13, 148, 136, 0.15)' : 'transparent',
+              padding: isSelfTag ? '1px 4px' : '0',
+              borderRadius: isSelfTag ? '4px' : '0',
+            }}
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
     });
   };
 
@@ -121,7 +147,8 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           padding: '9px 13px',
           backgroundColor: isDeleted ? 'var(--bg-elevated)' : isMe ? 'var(--bubble-me)' : isAi ? 'var(--bubble-ai-bg)' : 'var(--bubble-other)',
           color: isDeleted ? 'var(--text-muted)' : isMe ? 'var(--bubble-me-text)' : isAi ? 'var(--bubble-ai-text)' : 'var(--bubble-other-text)',
-          border: isDeleted ? '1px dashed var(--border)' : isAi ? '1px solid var(--bubble-ai-border)' : isMe ? 'none' : '1px solid var(--border)',
+          border: isMentionedMe ? '2px solid #0D9488' : isDeleted ? '1px dashed var(--border)' : isAi ? '1px solid var(--bubble-ai-border)' : isMe ? 'none' : '1px solid var(--border)',
+          boxShadow: isMentionedMe ? '0 0 8px rgba(13, 148, 136, 0.3)' : 'none',
           borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
           fontSize: '14px',
           lineHeight: '1.5',
@@ -184,7 +211,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           ) : msg.content === '' && isAi ? (
             <span className="copilot-loading">Trợ lý AI đang phản hồi…</span>
           ) : (
-            msg.content
+            renderFormattedContent(msg.content)
           )}
         </div>
       </div>

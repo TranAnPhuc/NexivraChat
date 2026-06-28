@@ -54,5 +54,17 @@ namespace NexivraChatBackend.Repositories
                 user.Id = id;
             }
         }
+
+        public async Task<List<User>> GetByUsernames(IEnumerable<string> usernames)
+        {
+            var list = usernames.Where(u => !string.IsNullOrWhiteSpace(u)).Distinct().ToList();
+            if (!list.Any()) return new List<User>();
+
+            using (var connection = _context.CreateConnection())
+            {
+                var query = "SELECT id AS Id, username AS Username, created_at AS CreatedAt FROM users WHERE username = ANY(@list)";
+                return (await connection.QueryAsync<User>(query, new { list = list.ToArray() })).ToList();
+            }
+        }
     }
 }

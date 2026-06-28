@@ -87,6 +87,14 @@ namespace NexivraChatBackend.Data
                         PRIMARY KEY (message_id, user_id, emoji)
                     );";
 
+                // 8. Tạo bảng message_mentions (lưu nhắc tên user trong tin nhắn phòng)
+                var createMessageMentionsTable = @"
+                    CREATE TABLE IF NOT EXISTS message_mentions (
+                        message_id INT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+                        mentioned_user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        PRIMARY KEY (message_id, mentioned_user_id)
+                    );";
+
                 connection.Execute(createUsersTable);
                 connection.Execute(createRoomsTable);
                 connection.Execute(createPrivateChatsTable);
@@ -94,6 +102,7 @@ namespace NexivraChatBackend.Data
                 connection.Execute(createUserProfilesTable);
                 connection.Execute(createConversationReadsTable);
                 connection.Execute(createMessageReactionsTable);
+                connection.Execute(createMessageMentionsTable);
 
                 // Migration idempotent bổ sung sender_id, reply_to_id, edited_at, deleted_at cho bảng messages
                 var migrateMessageColumns = @"
@@ -125,7 +134,9 @@ namespace NexivraChatBackend.Data
                     CREATE INDEX IF NOT EXISTS idx_messages_room_id
                         ON messages (room_id, id);
                     CREATE INDEX IF NOT EXISTS idx_messages_private_id
-                        ON messages (private_chat_id, id);";
+                        ON messages (private_chat_id, id);
+                    CREATE INDEX IF NOT EXISTS idx_mentions_user
+                        ON message_mentions (mentioned_user_id);";
                 connection.Execute(createMessageIndexes);
 
                 // 8. Index unique từng phần cho conversation_reads (NULL bị coi distinct nên

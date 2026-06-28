@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
-import { Input, Button, message } from 'antd';
+import { Input, Button, message, notification } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { API_BASE_URL } from '../services/api';
@@ -71,6 +71,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [partnerLastReadId, setPartnerLastReadId] = useState<number>(0);
   const [reactions, setReactions] = useState<Record<number, ReactionSummary[]>>({});
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [mentionRooms, setMentionRooms] = useState<Set<number>>(new Set());
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState<number>(-1);
 
   const currentUserId = useMemo(() => {
     try {
@@ -238,10 +241,20 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     }
   };
 
+  const fetchUnreadMentions = async () => {
+    try {
+      const response = await api.get('/users/mentions');
+      setMentionRooms(new Set(response.data as number[]));
+    } catch (err) {
+      console.error('Không thể lấy danh sách nhắc tên chưa đọc.', err);
+    }
+  };
+
   useEffect(() => {
     fetchRooms();
     fetchUsers();
     fetchUnreadCounts();
+    fetchUnreadMentions();
   }, []);
 
   // 3. Tải lịch sử tin nhắn phòng chat (mở phòng = đã đọc tới tin cuối)
@@ -349,6 +362,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   useEffect(() => { activePrivateChatIdRef.current = activePrivateChatId; }, [activePrivateChatId]);
   useEffect(() => { activeChatTypeRef.current = activeChatType; }, [activeChatType]);
   useEffect(() => { activeRecipientIdRef.current = activeRecipient?.id ?? null; }, [activeRecipient]);
+  const roomsRef = useRef(rooms);
+  useEffect(() => { roomsRef.current = rooms; }, [rooms]);
 
   useEffect(() => {
     const positiveIds = messages.filter(m => m.id > 0).map(m => m.id);
@@ -362,6 +377,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     setTranslations({});
     setTranslatingIds({});
     setReplyingTo(null);
+    if (activeChatType === 'room' && activeRoomId !== null) {
+      setMentionRooms((prev) => {
+        if (!prev.has(activeRoomId)) return prev;
+        const next = new Set(prev);
+        next.delete(activeRoomId);
+        return next;
+      });
+    }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     isTypingRef.current = false;
 
@@ -585,6 +608,19 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       );
     });
 
+    conn.on('MentionUpdate', (payload: { roomId: number; messageId: number; fromUsername: string }) => {
+      if (activeChatTypeRef.current !== 'room' || activeRoomIdRef.current !== payload.roomId) {
+        setMentionRooms((prev) => new Set(prev).add(payload.roomId));
+        const roomObj = roomsRef.current.find((r) => r.id === payload.roomId);
+        const roomName = roomObj ? `#${roomObj.name}` : 'phòng';
+        notification.info({
+          message: 'Thông báo nhắc tên',
+          description: `${payload.fromUsername} đã nhắc bạn ở ${roomName}`,
+          placement: 'topRight',
+        });
+      }
+    });
+
     // Sau khi kết nối lại: rejoin phòng + refetch tin hội thoại đang mở + refetch unread
     // (fold resync tối thiểu — tin đến lúc mất mạng không bị bỏ lỡ trên badge).
     conn.onreconnected(async () => {
@@ -722,6 +758,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       conn.off('SeenUpdate');
       conn.off('MessageEdited');
       conn.off('MessageDeleted');
+      conn.off('MentionUpdate');
       prevRoomRef.current = null;
       conn.stop().catch(() => {});
     };
@@ -778,8 +815,42 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     conn.invoke('Typing', roomId, isTyping).catch(() => {});
   };
 
+  const filteredMentionUsers = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const queryLower = mentionQuery.toLowerCase();
+    const list = users.filter(
+      (u) => u.username.toLowerCase() !== username.toLowerCase() && u.username.toLowerCase().includes(queryLower)
+    );
+    return list.sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
+  }, [mentionQuery, users, username]);
+
+  const handleSelectMentionUser = (targetUsername: string) => {
+    if (mentionIndex === -1) return;
+    const before = inputText.substring(0, mentionIndex);
+    const newText = `${before}@${targetUsername} `;
+    setInputText(newText);
+    setMentionQuery(null);
+  };
+
   const handleInputChange = (value: string) => {
     setInputText(value);
+    if (activeChatType === 'room') {
+      const lastAtIndex = value.lastIndexOf('@');
+      if (lastAtIndex !== -1 && (lastAtIndex === 0 || value[lastAtIndex - 1] === ' ')) {
+        const query = value.substring(lastAtIndex + 1);
+        if (!query.includes(' ')) {
+          setMentionQuery(query);
+          setMentionIndex(lastAtIndex);
+        } else {
+          setMentionQuery(null);
+        }
+      } else {
+        setMentionQuery(null);
+      }
+    } else {
+      setMentionQuery(null);
+    }
+
     if (!isTypingRef.current) {
       isTypingRef.current = true;
       sendTyping(true);
@@ -815,6 +886,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         setInputText('');
       }
       setReplyingTo(null);
+      setMentionQuery(null);
     } catch (err) {
       message.error('Không thể gửi tin nhắn.');
     }
@@ -889,6 +961,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         unreadRooms={unread.rooms}
         unreadPrivateChats={unread.privateChats}
         activePrivateUserId={activeRecipient?.id ?? null}
+        mentionRooms={mentionRooms}
       />
 
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-surface)', position: 'relative' }}>
@@ -1015,7 +1088,47 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         </div>
 
         {/* Input Area */}
-        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: '10px', position: 'relative' }}>
+          {mentionQuery !== null && filteredMentionUsers.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              bottom: '60px',
+              left: '20px',
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              maxHeight: '180px',
+              overflowY: 'auto',
+              zIndex: 100,
+              width: '220px',
+              padding: '4px 0'
+            }}>
+              {filteredMentionUsers.map((u) => (
+                <div
+                  key={u.id}
+                  onClick={() => handleSelectMentionUser(u.username)}
+                  style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '13px',
+                    color: 'var(--text-primary)',
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary-soft)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  <span style={{ fontWeight: 600 }}>@{u.username}</span>
+                  <span style={{ fontSize: '10px', color: u.isOnline ? '#0D9488' : 'var(--text-muted)' }}>
+                    {u.isOnline ? '● online' : 'offline'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {replyingTo && (
             <div style={{ padding: '6px 12px', backgroundColor: 'var(--bg-elevated)', borderLeft: '3px solid #0D9488', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '8px' }}>

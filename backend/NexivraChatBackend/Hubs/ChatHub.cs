@@ -19,6 +19,8 @@ namespace NexivraChatBackend.Hubs
         private readonly PrivateChatRepository _privateChatRepository;
         private readonly ConversationReadRepository _conversationReadRepository;
         private readonly ReactionRepository _reactionRepository;
+        private readonly UserRepository _userRepository;
+        private readonly MentionRepository _mentionRepository;
 
         public ChatHub(
             MessageRepository messageRepository,
@@ -26,7 +28,9 @@ namespace NexivraChatBackend.Hubs
             PresenceTracker presenceTracker,
             PrivateChatRepository privateChatRepository,
             ConversationReadRepository conversationReadRepository,
-            ReactionRepository reactionRepository)
+            ReactionRepository reactionRepository,
+            UserRepository userRepository,
+            MentionRepository mentionRepository)
         {
             _messageRepository = messageRepository;
             _aiService = aiService;
@@ -34,6 +38,8 @@ namespace NexivraChatBackend.Hubs
             _privateChatRepository = privateChatRepository;
             _conversationReadRepository = conversationReadRepository;
             _reactionRepository = reactionRepository;
+            _userRepository = userRepository;
+            _mentionRepository = mentionRepository;
         }
 
         public async Task JoinRoom(int roomId)
@@ -135,6 +141,38 @@ namespace NexivraChatBackend.Hubs
 
             // 2b. Tín hiệu unread nhẹ tới MỌI user
             await Clients.All.SendAsync("UnreadUpdate", new { type = "room", id = roomId });
+
+            // 2c. Xử lý @mention nhắc tên người dùng trong phòng
+            var matches = System.Text.RegularExpressions.Regex.Matches(content, @"@([A-Za-z0-9_]+)");
+            if (matches.Count > 0)
+            {
+                var mentionedUsernames = matches
+                    .Cast<System.Text.RegularExpressions.Match>()
+                    .Select(m => m.Groups[1].Value)
+                    .Where(u => !u.Equals(username, StringComparison.OrdinalIgnoreCase) && !u.Equals("copilot", StringComparison.OrdinalIgnoreCase))
+                    .Distinct()
+                    .ToList();
+
+                if (mentionedUsernames.Any())
+                {
+                    var mentionedUsers = await _userRepository.GetByUsernames(mentionedUsernames);
+                    if (mentionedUsers.Any())
+                    {
+                        var targetUserIds = mentionedUsers.Select(u => u.Id).ToList();
+                        await _mentionRepository.SaveMentions(userMessage.Id, targetUserIds);
+
+                        foreach (var targetUser in mentionedUsers)
+                        {
+                            await Clients.User(targetUser.Id.ToString()).SendAsync("MentionUpdate", new
+                            {
+                                roomId,
+                                messageId = userMessage.Id,
+                                fromUsername = username
+                            });
+                        }
+                    }
+                }
+            }
 
             // 3. Xử lý gọi trợ lý AI nếu tin nhắn bắt đầu bằng tag @copilot
             if (content.Trim().StartsWith("@copilot", StringComparison.OrdinalIgnoreCase))
