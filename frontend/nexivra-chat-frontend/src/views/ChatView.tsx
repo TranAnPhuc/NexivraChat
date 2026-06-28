@@ -126,6 +126,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const activeRecipientIdRef = useRef<number | null>(null);
   // Phòng đang tham gia trên hub, để Leave đúng phòng cũ khi chuyển phòng
   const prevRoomRef = useRef<number | null>(null);
+  const lastReceivedMessageIdRef = useRef<number | null>(null);
 
   const messageEndRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -262,6 +263,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   useEffect(() => { activePrivateChatIdRef.current = activePrivateChatId; }, [activePrivateChatId]);
   useEffect(() => { activeChatTypeRef.current = activeChatType; }, [activeChatType]);
   useEffect(() => { activeRecipientIdRef.current = activeRecipient?.id ?? null; }, [activeRecipient]);
+
+  useEffect(() => {
+    const positiveIds = messages.filter(m => m.id > 0).map(m => m.id);
+    lastReceivedMessageIdRef.current = positiveIds.length > 0 ? Math.max(...positiveIds) : null;
+  }, [messages]);
 
   // Effect C: Đổi phòng/hội thoại — tải lịch sử, reset UI, và Leave/Join trên hub.
   useEffect(() => {
@@ -436,12 +442,57 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     // (fold resync tối thiểu — tin đến lúc mất mạng không bị bỏ lỡ trên badge).
     conn.onreconnected(() => {
       fetchUnreadCounts();
+      const lastId = lastReceivedMessageIdRef.current;
+
       if (activeChatTypeRef.current === 'room' && activeRoomIdRef.current !== null) {
-        conn.invoke('JoinRoom', activeRoomIdRef.current).catch(() => {});
-        prevRoomRef.current = activeRoomIdRef.current;
-        fetchMessageHistory(activeRoomIdRef.current);
+        const roomId = activeRoomIdRef.current;
+        conn.invoke('JoinRoom', roomId).catch(() => {});
+        prevRoomRef.current = roomId;
+
+        if (lastId !== null) {
+          api.get(`/rooms/${roomId}/messages?limit=50&afterId=${lastId}`)
+            .then((response) => {
+              const newMessages = response.data as Message[];
+              flushSync(() => {
+                setMessages((prev) => {
+                  const merged = [...prev, ...newMessages];
+                  return merged.filter((msg, index, self) =>
+                    self.findIndex(m => m.id === msg.id) === index
+                  );
+                });
+              });
+            })
+            .catch((err) => {
+              console.error('Lỗi khi tải tin nhắn sau reconnect cho phòng, dùng fallback:', err);
+              fetchMessageHistory(roomId);
+            });
+        } else {
+          fetchMessageHistory(roomId);
+        }
       } else if (activeChatTypeRef.current === 'private' && activePrivateChatIdRef.current !== null) {
-        fetchPrivateMessageHistory(activePrivateChatIdRef.current, activeRecipientIdRef.current ?? undefined);
+        const chatId = activePrivateChatIdRef.current;
+        const recipientId = activeRecipientIdRef.current;
+
+        if (lastId !== null) {
+          api.get(`/users/private-chat/${chatId}/messages?limit=50&afterId=${lastId}`)
+            .then((response) => {
+              const newMessages = response.data as Message[];
+              flushSync(() => {
+                setMessages((prev) => {
+                  const merged = [...prev, ...newMessages];
+                  return merged.filter((msg, index, self) =>
+                    self.findIndex(m => m.id === msg.id) === index
+                  );
+                });
+              });
+            })
+            .catch((err) => {
+              console.error('Lỗi khi tải tin nhắn sau reconnect cho private-chat, dùng fallback:', err);
+              fetchPrivateMessageHistory(chatId, recipientId ?? undefined);
+            });
+        } else {
+          fetchPrivateMessageHistory(chatId, recipientId ?? undefined);
+        }
       }
     });
 
