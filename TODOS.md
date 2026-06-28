@@ -7,7 +7,7 @@
 - [x] GĐ4.1 Test harness đóng sổ unread-badges (Testcontainers/Respawn + hub test) — LÀM TRƯỚC.
 - [x] GĐ4.2 Pagination "tải tin cũ" theo keyset `id` (client kẹt `limit=50&offset=0`).
 - [x] GĐ4.3 Resync đầy đủ sau reconnect (hiện chỉ fold counts + tin active).
-- [ ] GĐ4.4 Migration `sender_id` (enabler cho receipts/@mention) — trước 4.5.
+- [x] GĐ4.4 Migration `sender_id` (enabler cho receipts/@mention) — trước 4.5.
 - [ ] GĐ4.5 Trạng thái Đã gửi/Đã xem (DM trước; group defer).
 - [ ] GĐ4.6 Web Push/OS notification (mục lớn — Claude spec trước khi code).
 

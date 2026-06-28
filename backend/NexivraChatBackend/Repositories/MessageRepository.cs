@@ -21,7 +21,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
+                var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
                 return (await connection.QueryAsync<Message>(query, new { limit, offset })).ToList();
             }
         }
@@ -32,12 +32,12 @@ namespace NexivraChatBackend.Repositories
             {
                 if (afterId.HasValue)
                 {
-                    var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE room_id = @roomId AND id > @afterId ORDER BY id ASC LIMIT @limit;";
+                    var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE room_id = @roomId AND id > @afterId ORDER BY id ASC LIMIT @limit;";
                     return (await connection.QueryAsync<Message>(query, new { roomId, limit, afterId })).ToList();
                 }
                 else
                 {
-                    var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE room_id = @roomId AND (@beforeId IS NULL OR id < @beforeId) ORDER BY id DESC LIMIT @limit;";
+                    var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE room_id = @roomId AND (@beforeId IS NULL OR id < @beforeId) ORDER BY id DESC LIMIT @limit;";
                     var result = (await connection.QueryAsync<Message>(query, new { roomId, limit, beforeId })).ToList();
                     result.Reverse(); // Trả về theo thứ tự thời gian tăng dần
                     return result;
@@ -51,12 +51,12 @@ namespace NexivraChatBackend.Repositories
             {
                 if (afterId.HasValue)
                 {
-                    var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE private_chat_id = @privateChatId AND id > @afterId ORDER BY id ASC LIMIT @limit;";
+                    var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE private_chat_id = @privateChatId AND id > @afterId ORDER BY id ASC LIMIT @limit;";
                     return (await connection.QueryAsync<Message>(query, new { privateChatId, limit, afterId })).ToList();
                 }
                 else
                 {
-                    var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE private_chat_id = @privateChatId AND (@beforeId IS NULL OR id < @beforeId) ORDER BY id DESC LIMIT @limit;";
+                    var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE private_chat_id = @privateChatId AND (@beforeId IS NULL OR id < @beforeId) ORDER BY id DESC LIMIT @limit;";
                     var result = (await connection.QueryAsync<Message>(query, new { privateChatId, limit, beforeId })).ToList();
                     result.Reverse(); // Trả về theo thứ tự thời gian tăng dần
                     return result;
@@ -69,14 +69,15 @@ namespace NexivraChatBackend.Repositories
             using (var connection = _context.CreateConnection())
             {
                 var query = @"
-                    INSERT INTO messages (room_id, private_chat_id, sender_name, content, created_at, is_ai)
-                    VALUES (@room_id, @private_chat_id, @sender_name, @content, @created_at, @is_ai)
+                    INSERT INTO messages (room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai)
+                    VALUES (@room_id, @private_chat_id, @sender_id, @sender_name, @content, @created_at, @is_ai)
                     RETURNING id;";
 
                 var id = await connection.ExecuteScalarAsync<int>(query, new
                 {
                     room_id = message.RoomId,
                     private_chat_id = message.PrivateChatId,
+                    sender_id = message.SenderId,
                     sender_name = message.SenderName,
                     content = message.Content,
                     created_at = message.CreatedAt == default ? DateTime.Now : message.CreatedAt,
@@ -90,7 +91,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id, room_id, private_chat_id, sender_name, content, created_at, is_ai FROM messages WHERE sender_name = @senderName AND is_ai = false ORDER BY created_at DESC LIMIT @limit";
+                var query = "SELECT id, room_id, private_chat_id, sender_id, sender_name, content, created_at, is_ai FROM messages WHERE sender_name = @senderName AND is_ai = false ORDER BY created_at DESC LIMIT @limit";
                 return (await connection.QueryAsync<Message>(query, new { senderName, limit })).ToList();
             }
         }

@@ -44,6 +44,7 @@ namespace NexivraChatBackend.Data
                         id SERIAL PRIMARY KEY,
                         room_id INT REFERENCES chat_rooms(id) ON DELETE CASCADE,
                         private_chat_id INT REFERENCES private_chats(id) ON DELETE CASCADE,
+                        sender_id INT NULL REFERENCES users(id) ON DELETE SET NULL,
                         sender_name VARCHAR(50) NOT NULL,
                         content TEXT NOT NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -80,6 +81,15 @@ namespace NexivraChatBackend.Data
                 connection.Execute(createUserProfilesTable);
                 connection.Execute(createConversationReadsTable);
 
+                // Migration idempotent bổ sung sender_id và backfill dữ liệu cho bảng messages
+                var migrateSenderId = @"
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_id INT NULL REFERENCES users(id) ON DELETE SET NULL;
+                    UPDATE messages m
+                    SET sender_id = u.id
+                    FROM users u
+                    WHERE m.sender_id IS NULL AND m.is_ai = false AND m.sender_name = u.username;";
+                connection.Execute(migrateSenderId);
+
                 // 7. Tạo index tối ưu truy vấn lịch sử tin nhắn (idempotent)
                 var createMessageIndexes = @"
                     CREATE INDEX IF NOT EXISTS idx_messages_room_created
@@ -88,6 +98,8 @@ namespace NexivraChatBackend.Data
                         ON messages (private_chat_id, created_at);
                     CREATE INDEX IF NOT EXISTS idx_messages_sender
                         ON messages (sender_name);
+                    CREATE INDEX IF NOT EXISTS idx_messages_sender_id
+                        ON messages (sender_id);
                     -- Phục vụ truy vấn unread (id > last_read), không phải theo created_at
                     CREATE INDEX IF NOT EXISTS idx_messages_room_id
                         ON messages (room_id, id);

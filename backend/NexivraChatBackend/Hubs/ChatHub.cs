@@ -96,10 +96,17 @@ namespace NexivraChatBackend.Hubs
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
             var roomString = roomId.ToString();
 
+            int? senderId = null;
+            if (int.TryParse(Context.UserIdentifier, out var parsedSenderId))
+            {
+                senderId = parsedSenderId;
+            }
+
             // 1. Lưu tin nhắn người dùng gửi vào Database
             var userMessage = new Message
             {
                 RoomId = roomId,
+                SenderId = senderId,
                 SenderName = username,
                 Content = content,
                 CreatedAt = DateTime.Now,
@@ -200,6 +207,7 @@ namespace NexivraChatBackend.Hubs
             var userMessage = new Message
             {
                 PrivateChatId = privateChat.Id,
+                SenderId = senderId,
                 SenderName = username,
                 Content = content,
                 CreatedAt = DateTime.Now,

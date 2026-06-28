@@ -10,6 +10,7 @@ namespace NexivraChatBackend.Models
         public int Id { get; set; }
         public int? RoomId { get; set; }
         public int? PrivateChatId { get; set; }
+        public int? SenderId { get; set; }
         public string SenderName { get; set; }
         public string Content { get; set; }
         public DateTime CreatedAt { get; set; }

@@ -20,6 +20,7 @@ export interface Message {
   id: number;
   roomId?: number;
   privateChatId?: number;
+  senderId?: number;
   senderName: string;
   content: string;
   createdAt: string;
