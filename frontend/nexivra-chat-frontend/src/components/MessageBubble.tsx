@@ -11,6 +11,7 @@ interface MessageBubbleProps {
   isTranslating: boolean;
   receiptStatus?: 'sent' | 'seen';
   reactions?: ReactionSummary[];
+  highlightedMsgId?: number | null;
   onTranslate: (msgId: number, text: string) => void;
   onHideTranslation: (msgId: number) => void;
   onOpenSenderProfile: (senderName: string) => void;
@@ -27,6 +28,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   isTranslating,
   receiptStatus,
   reactions,
+  highlightedMsgId,
   onTranslate,
   onHideTranslation,
   onOpenSenderProfile,
@@ -39,6 +41,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   const isAi = msg.isAi;
   const isDeleted = !!msg.deletedAt;
   const isMentionedMe = !isMe && !isDeleted && new RegExp(`@${currentUsername}\\b`, 'i').test(msg.content);
+  const isHighlighted = msg.id === highlightedMsgId;
   const [showPicker, setShowPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(msg.content);
@@ -162,10 +165,10 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
 
         <div style={{
           padding: '9px 13px',
-          backgroundColor: isDeleted ? 'var(--bg-elevated)' : isMe ? 'var(--bubble-me)' : isAi ? 'var(--bubble-ai-bg)' : 'var(--bubble-other)',
+          backgroundColor: isHighlighted ? 'rgba(13, 148, 136, 0.25)' : isDeleted ? 'var(--bg-elevated)' : isMe ? 'var(--bubble-me)' : isAi ? 'var(--bubble-ai-bg)' : 'var(--bubble-other)',
           color: isDeleted ? 'var(--text-muted)' : isMe ? 'var(--bubble-me-text)' : isAi ? 'var(--bubble-ai-text)' : 'var(--bubble-other-text)',
-          border: isMentionedMe ? '2px solid #0D9488' : isDeleted ? '1px dashed var(--border)' : isAi ? '1px solid var(--bubble-ai-border)' : isMe ? 'none' : '1px solid var(--border)',
-          boxShadow: isMentionedMe ? '0 0 8px rgba(13, 148, 136, 0.3)' : 'none',
+          border: isHighlighted ? '2px solid #0D9488' : isMentionedMe ? '2px solid #0D9488' : isDeleted ? '1px dashed var(--border)' : isAi ? '1px solid var(--bubble-ai-border)' : isMe ? 'none' : '1px solid var(--border)',
+          boxShadow: isHighlighted ? '0 0 12px rgba(13, 148, 136, 0.6)' : isMentionedMe ? '0 0 8px rgba(13, 148, 136, 0.3)' : 'none',
           borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
           fontSize: '14px',
           lineHeight: '1.5',

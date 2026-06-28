@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
 import { Input, Button, message, notification } from 'antd';
-import { SendOutlined, PaperClipOutlined, FileOutlined } from '@ant-design/icons';
+import { SendOutlined, PaperClipOutlined, FileOutlined, SearchOutlined, CloseOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { API_BASE_URL } from '../services/api';
 import { RoomSidebar, type Room, type SidebarUser } from '../components/RoomSidebar';
@@ -82,6 +82,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [pendingAttachment, setPendingAttachment] = useState<{ url: string; name: string; type: string; size: number } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [highlightedMsgId, setHighlightedMsgId] = useState<number | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentUserId = useMemo(() => {
     try {
@@ -387,6 +395,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     setTranslations({});
     setTranslatingIds({});
     setReplyingTo(null);
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setHighlightedMsgId(null);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
     if (activeChatType === 'room' && activeRoomId !== null) {
       setMentionRooms((prev) => {
         if (!prev.has(activeRoomId)) return prev;
@@ -862,6 +876,85 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     setMentionQuery(null);
   };
 
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    const trimmed = val.trim();
+    if (trimmed.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        let res;
+        if (activeChatType === 'room' && activeRoomId !== null) {
+          res = await api.get(`/rooms/${activeRoomId}/messages/search?q=${encodeURIComponent(trimmed)}`);
+        } else if (activeChatType === 'private' && activePrivateChatId !== null) {
+          res = await api.get(`/users/private-chat/${activePrivateChatId}/messages/search?q=${encodeURIComponent(trimmed)}`);
+        }
+        if (res) {
+          setSearchResults(res.data);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tìm kiếm tin nhắn:', err);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+  };
+
+  const triggerHighlight = (msgId: number) => {
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    setHighlightedMsgId(msgId);
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedMsgId(null);
+    }, 2000);
+  };
+
+  const handleJumpToMessage = async (msgId: number) => {
+    setSearchOpen(false);
+    const existingIndex = messages.findIndex((m) => m.id === msgId);
+    if (existingIndex !== -1) {
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`msg-${msgId}`);
+        if (el) {
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          triggerHighlight(msgId);
+        }
+      });
+    } else {
+      try {
+        let response;
+        if (activeChatType === 'room' && activeRoomId !== null) {
+          response = await api.get(`/rooms/${activeRoomId}/messages?limit=50&beforeId=${msgId + 1}`);
+        } else if (activeChatType === 'private' && activePrivateChatId !== null) {
+          response = await api.get(`/users/private-chat/${activePrivateChatId}/messages?limit=50&beforeId=${msgId + 1}`);
+        }
+        if (response && response.data) {
+          const fetchedMsgs: Message[] = response.data;
+          flushSync(() => {
+            setMessages(fetchedMsgs);
+            setHasMore(fetchedMsgs.length >= 50);
+            fetchReactionsForMessages(fetchedMsgs);
+          });
+          requestAnimationFrame(() => {
+            const el = document.getElementById(`msg-${msgId}`);
+            if (el) {
+              el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+            triggerHighlight(msgId);
+          });
+        }
+      } catch (err) {
+        message.error('Không thể nạp tin nhắn cũ.');
+      }
+    }
+  };
+
   const handleInputChange = (value: string) => {
     setInputText(value);
     if (activeChatType === 'room') {
@@ -1079,8 +1172,85 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               </div>
             )}
           </div>
-          <ThemeToggle />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Button
+              icon={<SearchOutlined />}
+              onClick={() => {
+                setSearchOpen((prev) => !prev);
+                if (searchOpen) {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }
+              }}
+              title="Tìm kiếm tin nhắn trong hội thoại"
+              style={{ color: searchOpen ? '#0D9488' : undefined, borderColor: searchOpen ? '#0D9488' : undefined }}
+            />
+            <ThemeToggle />
+          </div>
         </div>
+
+        {/* Search Panel Overlay */}
+        {searchOpen && (
+          <div style={{
+            position: 'absolute',
+            top: '70px',
+            right: '20px',
+            width: '320px',
+            backgroundColor: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+            zIndex: 100,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}>
+            <div style={{ padding: '10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Input
+                placeholder="Tìm từ khóa (≥ 2 ký tự)..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                autoFocus
+                allowClear
+              />
+              <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); }} />
+            </div>
+            <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '6px' }}>
+              {searching ? (
+                <div style={{ textAlign: 'center', padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>Đang tìm kiếm...</div>
+              ) : searchQuery.trim().length < 2 ? (
+                <div style={{ textAlign: 'center', padding: '12px', color: 'var(--text-muted)', fontSize: '12px' }}>Nhập ít nhất 2 ký tự để tìm kiếm</div>
+              ) : searchResults.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>Không tìm thấy kết quả</div>
+              ) : (
+                searchResults.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleJumpToMessage(item.id)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      transition: 'background 0.15s',
+                      marginBottom: '4px',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary-soft)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span style={{ fontWeight: 600, color: '#0D9488' }}>{item.senderName}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{new Date(item.createdAt).toLocaleTimeString()}</span>
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.content.length > 80 ? `${item.content.substring(0, 80)}…` : item.content}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Floating Notification Banner */}
         <div style={{ position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '4px', pointerEvents: 'none' }}>
@@ -1142,6 +1312,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
                     isTranslating={!!translatingIds[msg.id]}
                     receiptStatus={receiptStatus}
                     reactions={reactions[msg.id]}
+                    highlightedMsgId={highlightedMsgId}
                     onTranslate={handleTranslateMessage}
                     onHideTranslation={handleHideTranslation}
                     onOpenSenderProfile={handleOpenSenderProfile}

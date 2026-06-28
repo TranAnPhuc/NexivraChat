@@ -57,6 +57,24 @@ namespace NexivraChatBackend.Controllers
             var messages = await _messageRepository.GetMessagesByRoom(id, limit, beforeId, afterId);
             return Ok(messages);
         }
+
+        [HttpGet("{id}/messages/search")]
+        public async Task<IActionResult> SearchRoomMessages(int id, [FromQuery] string q, [FromQuery] int limit = 30, [FromQuery] int? beforeId = null)
+        {
+            var room = await _roomRepository.GetById(id);
+            if (room == null)
+            {
+                return NotFound("Phòng chat không tồn tại.");
+            }
+
+            if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
+            {
+                return Ok(new System.Collections.Generic.List<Message>());
+            }
+
+            var results = await _messageRepository.SearchRoomMessages(id, q.Trim(), limit, beforeId);
+            return Ok(results);
+        }
     }
 
     public class CreateRoomDto

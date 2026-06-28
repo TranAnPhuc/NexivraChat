@@ -134,6 +134,35 @@ namespace NexivraChatBackend.Controllers
 
             return Ok(messages);
         }
+
+        [HttpGet("private-chat/{id}/messages/search")]
+        public async Task<IActionResult> SearchPrivateChatMessages(int id, [FromQuery] string q, [FromQuery] int limit = 30, [FromQuery] int? beforeId = null)
+        {
+            var chat = await _privateChatRepository.GetById(id);
+            if (chat == null)
+            {
+                return NotFound("Cuộc hội thoại không tồn tại.");
+            }
+
+            var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserIdStr) || !int.TryParse(currentUserIdStr, out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            if (chat.User1Id != currentUserId && chat.User2Id != currentUserId)
+            {
+                return Forbid();
+            }
+
+            if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
+            {
+                return Ok(new System.Collections.Generic.List<Message>());
+            }
+
+            var results = await _messageRepository.SearchPrivateChatMessages(id, q.Trim(), limit, beforeId);
+            return Ok(results);
+        }
     }
 
     public class CreatePrivateChatDto

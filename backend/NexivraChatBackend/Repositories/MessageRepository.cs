@@ -214,5 +214,53 @@ namespace NexivraChatBackend.Repositories
                 return await connection.QueryFirstOrDefaultAsync<Message>(query, new { attachmentUrl });
             }
         }
+
+        public async Task<List<Message>> SearchRoomMessages(int roomId, string keyword, int limit = 30, int? beforeId = null)
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                var escaped = keyword.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+                var pattern = $"%{escaped}%";
+                var query = @"
+                    SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
+                           m.sender_name AS SenderName,
+                           CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
+                           m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                           m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                           m.attachment_url AS AttachmentUrl, m.attachment_name AS AttachmentName,
+                           m.attachment_type AS AttachmentType, m.attachment_size AS AttachmentSize,
+                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
+                           CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
+                    FROM messages m
+                    LEFT JOIN messages r ON m.reply_to_id = r.id
+                    WHERE m.room_id = @roomId AND m.deleted_at IS NULL AND m.content ILIKE @pattern ESCAPE '\' AND (@beforeId IS NULL OR m.id < @beforeId)
+                    ORDER BY m.id DESC LIMIT @limit;";
+                return (await connection.QueryAsync<Message>(query, new { roomId, pattern, limit, beforeId })).ToList();
+            }
+        }
+
+        public async Task<List<Message>> SearchPrivateChatMessages(int privateChatId, string keyword, int limit = 30, int? beforeId = null)
+        {
+            using (var connection = _context.CreateConnection())
+            {
+                var escaped = keyword.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+                var pattern = $"%{escaped}%";
+                var query = @"
+                    SELECT m.id AS Id, m.room_id AS RoomId, m.private_chat_id AS PrivateChatId, m.sender_id AS SenderId,
+                           m.sender_name AS SenderName,
+                           CASE WHEN m.deleted_at IS NOT NULL THEN '' ELSE m.content END AS Content,
+                           m.created_at AS CreatedAt, m.is_ai AS IsAi,
+                           m.edited_at AS EditedAt, m.deleted_at AS DeletedAt,
+                           m.attachment_url AS AttachmentUrl, m.attachment_name AS AttachmentName,
+                           m.attachment_type AS AttachmentType, m.attachment_size AS AttachmentSize,
+                           m.reply_to_id AS ReplyToId, r.sender_name AS ReplyToSenderName,
+                           CASE WHEN r.deleted_at IS NOT NULL THEN NULL ELSE LEFT(r.content, 120) END AS ReplyToContent
+                    FROM messages m
+                    LEFT JOIN messages r ON m.reply_to_id = r.id
+                    WHERE m.private_chat_id = @privateChatId AND m.deleted_at IS NULL AND m.content ILIKE @pattern ESCAPE '\' AND (@beforeId IS NULL OR m.id < @beforeId)
+                    ORDER BY m.id DESC LIMIT @limit;";
+                return (await connection.QueryAsync<Message>(query, new { privateChatId, pattern, limit, beforeId })).ToList();
+            }
+        }
     }
 }
