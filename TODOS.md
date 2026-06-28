@@ -19,7 +19,7 @@
 - [ ] Chạy `dotnet test` với Docker bật để xác nhận 13 test integration xanh.
 
 ## GĐ5 — tính năng giống Zalo/Messenger/Telegram
-- [ ] GĐ5.1 Reactions (emoji) — spec: `docs/superpowers/plans/roadmap-foundation.md` mục GĐ5.1. **(tiếp theo sau #1)**
+- [x] GĐ5.1 Reactions (emoji) — spec: `docs/superpowers/plans/roadmap-foundation.md` mục GĐ5.1.
 
 ## Defer từ review unread-badges
 - [ ] Web Push / OS notification — chống bỏ lỡ khi app đóng (CEO #3). Giá trị cao, follow-up lớn.

@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
 import { Input, Button, message } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
@@ -25,6 +25,13 @@ export interface Message {
   content: string;
   createdAt: string;
   isAi: boolean;
+}
+
+export interface ReactionSummary {
+  messageId: number;
+  emoji: string;
+  count: number;
+  mineReacted: boolean;
 }
 
 interface ChatViewProps {
@@ -57,6 +64,17 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   // Chỉ mount ProfileView (lazy chunk) sau lần đầu mở hồ sơ; giữ mount để Modal có animation đóng/mở.
   const [profileEverOpened, setProfileEverOpened] = useState(false);
   const [partnerLastReadId, setPartnerLastReadId] = useState<number>(0);
+  const [reactions, setReactions] = useState<Record<number, ReactionSummary[]>>({});
+
+  const currentUserId = useMemo(() => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const idStr = payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || payload['nameidentifier'] || payload['sub'];
+      return idStr ? parseInt(idStr, 10) : null;
+    } catch {
+      return null;
+    }
+  }, [token]);
 
   const [hasMore, setHasMore] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -129,6 +147,32 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   // Phòng đang tham gia trên hub, để Leave đúng phòng cũ khi chuyển phòng
   const prevRoomRef = useRef<number | null>(null);
   const lastReceivedMessageIdRef = useRef<number | null>(null);
+  const currentUserIdRef = useRef<number | null>(null);
+  useEffect(() => { currentUserIdRef.current = currentUserId; }, [currentUserId]);
+
+  const fetchReactionsForMessages = useCallback(async (msgs: Message[]) => {
+    const positiveIds = msgs.filter((m) => m.id > 0).map((m) => m.id);
+    if (positiveIds.length === 0) return;
+    try {
+      const response = await api.get(`/reactions?messageIds=${positiveIds.join(',')}`);
+      const list = response.data as ReactionSummary[];
+      const map: Record<number, ReactionSummary[]> = {};
+      for (const item of list) {
+        if (!map[item.messageId]) map[item.messageId] = [];
+        map[item.messageId].push(item);
+      }
+      setReactions((prev) => ({ ...prev, ...map }));
+    } catch (err) {
+      console.error('Không thể tải reactions:', err);
+    }
+  }, []);
+
+  const handleToggleReaction = useCallback((messageId: number, emoji: string) => {
+    const conn = connectionRef.current;
+    if (conn && conn.state === 'Connected') {
+      conn.invoke('ToggleReaction', messageId, emoji).catch(() => {});
+    }
+  }, []);
 
   const messageEndRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -182,6 +226,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       const response = await api.get(`/rooms/${roomId}/messages?limit=50`);
       const data = response.data as Message[];
       setMessages(data);
+      fetchReactionsForMessages(data);
       setHasMore(data.length >= 50);
       const lastId = data.length ? data[data.length - 1].id : 0;
       markConversationRead('room', roomId, lastId, roomId);
@@ -200,6 +245,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       const response = await api.get(`/users/private-chat/${chatId}/messages?limit=50`);
       const data = response.data as Message[];
       setMessages(data);
+      fetchReactionsForMessages(data);
       setHasMore(data.length >= 50);
 
       const partnerReadHeader = response.headers['x-partner-last-read-id'];
@@ -237,6 +283,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       }
 
       const newMessages = response.data as Message[];
+      fetchReactionsForMessages(newMessages);
 
       flushSync(() => {
         setMessages((prev) => {
@@ -453,6 +500,39 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
           return prev.includes(user) ? prev : [...prev, user];
         }
         return prev.filter((u) => u !== user);
+      });
+    });
+
+    conn.on('ReactionUpdate', (payload: { messageId: number; emoji: string; count: number; userId: number; reacted: boolean }) => {
+      const currentUserIdVal = currentUserIdRef.current;
+      setReactions((prev) => {
+        const list = prev[payload.messageId] || [];
+        const existingIndex = list.findIndex((r) => r.emoji === payload.emoji);
+        let updatedList: ReactionSummary[];
+        if (payload.count <= 0) {
+          updatedList = list.filter((r) => r.emoji !== payload.emoji);
+        } else if (existingIndex >= 0) {
+          updatedList = list.map((r, i) =>
+            i === existingIndex
+              ? {
+                  ...r,
+                  count: payload.count,
+                  mineReacted: payload.userId === currentUserIdVal ? payload.reacted : r.mineReacted,
+                }
+              : r
+          );
+        } else {
+          updatedList = [
+            ...list,
+            {
+              messageId: payload.messageId,
+              emoji: payload.emoji,
+              count: payload.count,
+              mineReacted: payload.userId === currentUserIdVal ? payload.reacted : false,
+            },
+          ];
+        }
+        return { ...prev, [payload.messageId]: updatedList };
       });
     });
 
@@ -860,9 +940,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
                     translation={translations[msg.id]}
                     isTranslating={!!translatingIds[msg.id]}
                     receiptStatus={receiptStatus}
+                    reactions={reactions[msg.id]}
                     onTranslate={handleTranslateMessage}
                     onHideTranslation={handleHideTranslation}
                     onOpenSenderProfile={handleOpenSenderProfile}
+                    onToggleReaction={handleToggleReaction}
                   />
                 );
               });

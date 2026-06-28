@@ -18,19 +18,22 @@ namespace NexivraChatBackend.Hubs
         private readonly PresenceTracker _presenceTracker;
         private readonly PrivateChatRepository _privateChatRepository;
         private readonly ConversationReadRepository _conversationReadRepository;
+        private readonly ReactionRepository _reactionRepository;
 
         public ChatHub(
             MessageRepository messageRepository,
             AiService aiService,
             PresenceTracker presenceTracker,
             PrivateChatRepository privateChatRepository,
-            ConversationReadRepository conversationReadRepository)
+            ConversationReadRepository conversationReadRepository,
+            ReactionRepository reactionRepository)
         {
             _messageRepository = messageRepository;
             _aiService = aiService;
             _presenceTracker = presenceTracker;
             _privateChatRepository = privateChatRepository;
             _conversationReadRepository = conversationReadRepository;
+            _reactionRepository = reactionRepository;
         }
 
         public async Task JoinRoom(int roomId)
@@ -256,6 +259,43 @@ namespace NexivraChatBackend.Hubs
             else
             {
                 throw new HubException("Cần roomId hoặc privateChatId.");
+            }
+        }
+
+        private static readonly string[] AllowedEmojis = new[] { "👍", "❤️", "😂", "😮", "😢", "🙏" };
+
+        public async Task ToggleReaction(int messageId, string emoji)
+        {
+            if (messageId <= 0 || string.IsNullOrEmpty(emoji) || !AllowedEmojis.Contains(emoji))
+            {
+                throw new HubException("Emoji không hợp lệ.");
+            }
+
+            var userIdStr = Context.UserIdentifier;
+            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
+            {
+                throw new HubException("Không xác định được danh tính người dùng.");
+            }
+
+            var (reacted, count) = await _reactionRepository.ToggleReaction(messageId, userId, emoji);
+            var conv = await _reactionRepository.LookupConversation(messageId);
+
+            var payload = new { messageId, emoji, count, userId, reacted };
+
+            if (conv != null)
+            {
+                if (conv.RoomId.HasValue)
+                {
+                    await Clients.Group(conv.RoomId.Value.ToString()).SendAsync("ReactionUpdate", payload);
+                }
+                else if (conv.PrivateChatId.HasValue)
+                {
+                    var chat = await _privateChatRepository.GetById(conv.PrivateChatId.Value);
+                    if (chat != null)
+                    {
+                        await Clients.Users(chat.User1Id.ToString(), chat.User2Id.ToString()).SendAsync("ReactionUpdate", payload);
+                    }
+                }
             }
         }
     }

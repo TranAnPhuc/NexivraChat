@@ -21,6 +21,7 @@ builder.Services.AddScoped<MessageRepository>();
 builder.Services.AddScoped<PrivateChatRepository>();
 builder.Services.AddScoped<ProfileRepository>();
 builder.Services.AddScoped<ConversationReadRepository>();
+builder.Services.AddScoped<ReactionRepository>();
 
 // 3. Đăng ký các Services phụ trợ
 builder.Services.AddScoped<TokenService>();

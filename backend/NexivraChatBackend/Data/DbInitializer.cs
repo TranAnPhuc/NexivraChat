@@ -64,6 +64,9 @@ namespace NexivraChatBackend.Data
                 // 6. Tạo bảng conversation_reads (theo dõi "đã đọc đến đâu" cho mỗi user × hội thoại).
                 //    Đúng 1 trong (room_id, private_chat_id) khác NULL (CHECK). Unread tính bằng
                 //    số messages có id > last_read_message_id.
+                // 6. Tạo bảng conversation_reads (theo dõi "đã đọc đến đâu" cho mỗi user × hội thoại).
+                //    Đúng 1 trong (room_id, private_chat_id) khác NULL (CHECK). Unread tính bằng
+                //    số messages có id > last_read_message_id.
                 var createConversationReadsTable = @"
                     CREATE TABLE IF NOT EXISTS conversation_reads (
                         user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -74,12 +77,23 @@ namespace NexivraChatBackend.Data
                         CONSTRAINT chk_reads_one_target CHECK ((room_id IS NULL) <> (private_chat_id IS NULL))
                     );";
 
+                // 7. Tạo bảng message_reactions (lưu cảm xúc emoji thả trên tin nhắn)
+                var createMessageReactionsTable = @"
+                    CREATE TABLE IF NOT EXISTS message_reactions (
+                        message_id INT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+                        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        emoji VARCHAR(16) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                        PRIMARY KEY (message_id, user_id, emoji)
+                    );";
+
                 connection.Execute(createUsersTable);
                 connection.Execute(createRoomsTable);
                 connection.Execute(createPrivateChatsTable);
                 connection.Execute(createMessagesTable);
                 connection.Execute(createUserProfilesTable);
                 connection.Execute(createConversationReadsTable);
+                connection.Execute(createMessageReactionsTable);
 
                 // Migration idempotent bổ sung sender_id và backfill dữ liệu cho bảng messages
                 var migrateSenderId = @"
@@ -100,6 +114,8 @@ namespace NexivraChatBackend.Data
                         ON messages (sender_name);
                     CREATE INDEX IF NOT EXISTS idx_messages_sender_id
                         ON messages (sender_id);
+                    CREATE INDEX IF NOT EXISTS idx_reactions_message
+                        ON message_reactions (message_id);
                     -- Phục vụ truy vấn unread (id > last_read), không phải theo created_at
                     CREATE INDEX IF NOT EXISTS idx_messages_room_id
                         ON messages (room_id, id);
