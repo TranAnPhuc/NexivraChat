@@ -29,6 +29,7 @@
 - [x] GĐ5.4 @mention nhắc tên — spec: `roadmap-foundation.md` mục GĐ5.4.
 - [x] GĐ5.4-test Thêm test `GetUnreadMentionRoomIds` (đóng nốt kỷ luật test).
 - [x] GĐ5.5 Gửi ảnh/file — spec: `roadmap-foundation.md` mục GĐ5.5 (kèm threat-model).
+- [ ] GĐ5.7 Typing indicator cho DM (phòng đã có; mở rộng `TypingPrivate`/`PrivateTypingUpdate`) — spec: `roadmap-foundation.md` mục GĐ5.7.
 
 ## Hardening sau GĐ5.5 (Claude review, 2026-06-28)
 - [x] #C Kiểm soát truy cập file đính kèm (serve qua `/api/files` có auth + verify participant; +fix #E webp inline) — spec: `roadmap-foundation.md` mục "Hardening #C".

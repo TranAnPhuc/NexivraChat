@@ -487,3 +487,68 @@ của stream và đối chiếu signature theo ext:
 Nếu signature không khớp ext → `BadRequest("Nội dung file không khớp định dạng khai báo.")`.
 Bỏ qua khi không match được mục nào trong whitelist (đã chặn ở bước trước).
 **Acceptance:** đổi tên `.exe`→`.png` rồi upload → bị từ chối; ảnh thật vẫn upload OK.
+
+---
+
+## GĐ5.7 — Typing indicator cho chat 1-1 (DM)
+
+**Bối cảnh:** Typing đã chạy hoàn chỉnh cho **phòng** (hub `Typing`/`TypingUpdate`,
+frontend `typingUsers` + UI dòng "… đang gõ…"). Nhưng chỉ hiện khi `activeChatType === 'room'`
+(`ChatView.tsx:1134`); spec gốc defer DM vì hồi đó chưa có DM. Giờ có DM → mở rộng.
+
+**Khác biệt định tuyến:** phòng dùng SignalR group (`Clients.OthersInGroup`), còn DM định tuyến
+theo userId (`Clients.User(userId)`, như `SendPrivateMessage`/`ReceivePrivateMessage`). Vì vậy
+KHÔNG tái dùng `Typing(roomId,...)` cho DM — thêm method + event riêng cho DM.
+
+### Backend — `Hubs/ChatHub.cs`
+Thêm method (đặt cạnh `Typing`):
+```csharp
+public async Task TypingPrivate(int receiverId, bool isTyping)
+{
+    var senderIdStr = Context.UserIdentifier;
+    if (!int.TryParse(senderIdStr, out var senderId)) return;
+    // Chỉ báo cho người nhận; không gửi lại cho chính mình
+    await Clients.User(receiverId.ToString())
+        .SendAsync("PrivateTypingUpdate", new { fromUserId = senderId, isTyping });
+}
+```
+- Không đụng DB, không cần verify participant nặng (chỉ là tín hiệu nhất thời; người gửi tự
+  biết mình đang chat với ai). `[Authorize]` ở class đã chặn ẩn danh.
+
+### Frontend — `ChatView.tsx`
+1. **State:** thêm `const [privateTypingFrom, setPrivateTypingFrom] = useState<number | null>(null);`
+   (userId đối phương đang gõ) + `privateTypingTimeoutRef` để tự tắt nếu mất sự kiện "false".
+2. **`sendTyping(isTyping)` (dòng ~818):** hiện early-return khi không phải room. Sửa thành:
+   - Nếu `activeChatTypeRef.current === 'room'` và có `roomId` → `invoke('Typing', roomId, isTyping)` (như cũ).
+   - Nếu `=== 'private'` và có `activeRecipientIdRef.current` → `invoke('TypingPrivate', recipientId, isTyping)`.
+   - `handleInputChange` (debounce 2s) đã gọi `sendTyping` cho mọi loại chat → giữ nguyên, chỉ
+     cần `sendTyping` xử lý đúng nhánh.
+3. **Listener** (cạnh `conn.on('TypingUpdate', …)`):
+   ```ts
+   conn.on('PrivateTypingUpdate', (p: { fromUserId: number; isTyping: boolean }) => {
+     // chỉ hiện nếu đúng DM đang mở
+     if (activeChatTypeRef.current !== 'private' || activeRecipientIdRef.current !== p.fromUserId) return;
+     if (privateTypingTimeoutRef.current) clearTimeout(privateTypingTimeoutRef.current);
+     setPrivateTypingFrom(p.isTyping ? p.fromUserId : null);
+     if (p.isTyping) {
+       // auto-tắt sau 4s nếu không nhận được tín hiệu false (mạng rớt)
+       privateTypingTimeoutRef.current = setTimeout(() => setPrivateTypingFrom(null), 4000);
+     }
+   });
+   ```
+   Nhớ `conn.off('PrivateTypingUpdate')` trong cleanup (cạnh `conn.off('TypingUpdate')` dòng ~762).
+4. **Reset khi đổi hội thoại:** nơi đang `setTypingUsers([])` (dòng ~383) → thêm `setPrivateTypingFrom(null)`.
+5. **UI:** cạnh khối typing của room (dòng ~1134) thêm khối DM:
+   ```tsx
+   {activeChatType === 'private' && privateTypingFrom !== null && (
+     <div style={{/* cùng style dòng typing room */}}>
+       {users.find(u => u.id === privateTypingFrom)?.username ?? 'Đối phương'} đang gõ…
+     </div>
+   )}
+   ```
+
+### Acceptance
+- Mở DM A↔B: A gõ → B thấy "A đang gõ…"; A ngừng 2s hoặc gửi tin → tắt.
+- Typing DM **không** rò sang phòng và ngược lại (đúng `activeChatType` + đúng `recipientId`).
+- A đang chat DM với B, C gửi typing DM cho A (cửa sổ khác) → A KHÔNG thấy (lọc theo `recipientId`).
+- `npm run build` sạch; typing phòng vẫn hoạt động như cũ (không regress).
