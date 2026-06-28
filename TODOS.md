@@ -13,7 +13,7 @@
 
 ## Polish từ review GĐ4 (Claude, 2026-06-28) — không chặn
 - [x] #1 Resync >50 tin: hiện chỉ kéo 1 lô 50 sau reconnect (`ChatView.tsx:471,495`) → lặp `afterId` tới khi lô <limit.
-- [ ] #2 Receipts dùng `senderName === username` (`ChatView.tsx:800`) thay vì `senderId` (4.4) — đổi khi tiện (cần userId của mình ở frontend).
+- [x] #2 Receipts dùng `senderName === username` (`ChatView.tsx:800`) thay vì `senderId` (4.4) — đổi khi tiện (cần userId của mình ở frontend).
 - [x] #3 Xóa `MessageRepository.GetOldMessages` (dead code, giờ còn thêm sender_id vào).
 - [x] #4 Dedupe resync dùng `findIndex` trong `filter` (O(n²)) → dùng `Set` như `loadOlderMessages`.
 - [x] **Checkpoint test 4.2→5.3** — spec: `roadmap-foundation.md` mục "Checkpoint Test". Phủ ReactionRepository, Edit/SoftDelete (authz), reply snapshot, blank tin đã xóa, keyset, hub authz. Rồi `dotnet test` (Docker) xanh.
@@ -34,9 +34,9 @@
 - [x] #C Kiểm soát truy cập file đính kèm (serve qua `/api/files` có auth + verify participant; +fix #E webp inline) — spec: `roadmap-foundation.md` mục "Hardening #C".
 
 ## Dọn nợ kỹ thuật — đợt 1 (Claude review, 2026-06-28) — spec: `roadmap-foundation.md` mục "Dọn nợ kỹ thuật — đợt 1"
-- [ ] #2 Receipts so theo `senderId` thay vì `senderName` (`ChatView.tsx:1102`; giữ chỗ mở hồ sơ theo tên).
+- [x] #2 Receipts so theo `senderId` thay vì `senderName` (`ChatView.tsx:1102`; giữ chỗ mở hồ sơ theo tên).
 - [x] #3 Xóa `MessageRepository.GetOldMessages` (dead code, không caller).
-- [ ] #D Check magic-bytes khi upload (chống đổi đuôi giả định dạng).
+- [x] #D Check magic-bytes khi upload (chống đổi đuôi giả định dạng).
 
 ## Defer từ GĐ5.5 (Threat-Model & File Cleanup)
 - [ ] Rate-limit upload theo user ID (chống spam đĩa).
