@@ -30,8 +30,8 @@
 - [x] GĐ5.4-test Thêm test `GetUnreadMentionRoomIds` (đóng nốt kỷ luật test).
 - [x] GĐ5.5 Gửi ảnh/file — spec: `roadmap-foundation.md` mục GĐ5.5 (kèm threat-model).
 - [x] GĐ5.7 Typing indicator cho DM (phòng đã có; mở rộng `TypingPrivate`/`PrivateTypingUpdate`) — spec: `roadmap-foundation.md` mục GĐ5.7.
-- [ ] GĐ5.6 Tìm kiếm tin nhắn trong hội thoại (ILIKE keyset + jump+highlight) — spec: `roadmap-foundation.md` mục GĐ5.6.
-  - [ ] GĐ5.6-test `MessageSearchTests` (case-insensitive, loại tin đã xóa, escape wildcard).
+- [x] GĐ5.6 Tìm kiếm tin nhắn trong hội thoại (ILIKE keyset + jump+highlight) — spec: `roadmap-foundation.md` mục GĐ5.6.
+  - [x] GĐ5.6-test `MessageSearchTests` (case-insensitive, loại tin đã xóa, escape wildcard).
   - [ ] Defer: nút "tải tin mới hơn" sau khi nhảy về quá khứ; search toàn cục nhiều hội thoại.
 
 ## Hardening sau GĐ5.5 (Claude review, 2026-06-28)
