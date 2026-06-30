@@ -24,5 +24,6 @@ namespace NexivraChatBackend.Models
         public string? AttachmentName { get; set; }
         public string? AttachmentType { get; set; }
         public long? AttachmentSize { get; set; }
+        public string? ClientId { get; set; }
     }
 }

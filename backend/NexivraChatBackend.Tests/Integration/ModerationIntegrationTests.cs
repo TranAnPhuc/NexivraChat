@@ -148,7 +148,7 @@ namespace NexivraChatBackend.Tests.Integration
             }
 
             // Act & Assert
-            await connection.InvokeAsync("SendMessage", 10, "Tin nhan sach", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null);
+            await connection.InvokeAsync("SendMessage", 10, "Tin nhan sach", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null, (string?)null);
             await connection.StopAsync();
         }
 
@@ -170,7 +170,7 @@ namespace NexivraChatBackend.Tests.Integration
             }
 
             // Act
-            await connection.InvokeAsync("SendMessage", 11, "con cho fuck", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null);
+            await connection.InvokeAsync("SendMessage", 11, "con cho fuck", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null, (string?)null);
             await connection.StopAsync();
 
             // Assert
@@ -202,7 +202,7 @@ namespace NexivraChatBackend.Tests.Integration
 
             // Act & Assert
             var exception = await Assert.ThrowsAsync<Microsoft.AspNetCore.SignalR.HubException>(() =>
-                connection.InvokeAsync("SendMessage", 12, "tao se chem may", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null)
+                connection.InvokeAsync("SendMessage", 12, "tao se chem may", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null, (string?)null)
             );
 
             Assert.Contains("vi phạm chuẩn mực", exception.Message);
@@ -280,13 +280,13 @@ namespace NexivraChatBackend.Tests.Integration
             for (int i = 0; i < 3; i++)
             {
                 await Assert.ThrowsAsync<Microsoft.AspNetCore.SignalR.HubException>(() =>
-                    connection.InvokeAsync("SendMessage", 14, "tao se chem may", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null)
+                    connection.InvokeAsync("SendMessage", 14, "tao se chem may", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null, (string?)null)
                 );
             }
 
             // The 4th message should fail with mute message instead of toxic message
             var muteException = await Assert.ThrowsAsync<Microsoft.AspNetCore.SignalR.HubException>(() =>
-                connection.InvokeAsync("SendMessage", 14, "Tin nhan binh thuong", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null)
+                connection.InvokeAsync("SendMessage", 14, "Tin nhan binh thuong", (int?)null, (string?)null, (string?)null, (string?)null, (long?)null, (string?)null)
             );
 
             Assert.Contains("tạm hạn chế gửi tin", muteException.Message);

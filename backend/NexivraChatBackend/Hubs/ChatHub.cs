@@ -179,7 +179,7 @@ namespace NexivraChatBackend.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendMessage(int roomId, string content, int? replyToId = null, string? attachmentUrl = null, string? attachmentName = null, string? attachmentType = null, long? attachmentSize = null)
+        public async Task SendMessage(int roomId, string content, int? replyToId = null, string? attachmentUrl = null, string? attachmentName = null, string? attachmentType = null, long? attachmentSize = null, string? clientId = null)
         {
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
             var roomString = roomId.ToString();
@@ -225,6 +225,7 @@ namespace NexivraChatBackend.Hubs
             }
 
             // 2. Phát tin nhắn người dùng tới toàn phòng chat
+            userMessage.ClientId = clientId;
             await Clients.Group(roomString).SendAsync("ReceiveMessage", userMessage);
 
             // 2b. Tín hiệu unread nhẹ tới MỌI user
@@ -331,7 +332,7 @@ namespace NexivraChatBackend.Hubs
             }
         }
 
-        public async Task SendPrivateMessage(int receiverId, string content, int? replyToId = null, string? attachmentUrl = null, string? attachmentName = null, string? attachmentType = null, long? attachmentSize = null)
+        public async Task SendPrivateMessage(int receiverId, string content, int? replyToId = null, string? attachmentUrl = null, string? attachmentName = null, string? attachmentType = null, long? attachmentSize = null, string? clientId = null)
         {
             var senderIdStr = Context.UserIdentifier;
             if (string.IsNullOrEmpty(senderIdStr) || !int.TryParse(senderIdStr, out var senderId))
@@ -375,6 +376,7 @@ namespace NexivraChatBackend.Hubs
             }
 
             // 3. Phát tin nhắn riêng tư tới cả người gửi và người nhận
+            userMessage.ClientId = clientId;
             await Clients.Users(senderId.ToString(), receiverId.ToString()).SendAsync("ReceivePrivateMessage", userMessage);
 
             //     người nhận) để khớp badge keyed-by-user ở sidebar.

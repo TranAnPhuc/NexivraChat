@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
-import { Input, Button, message, notification, Drawer } from 'antd';
+import { Input, Button, message, notification, Drawer, Spin } from 'antd';
 import { SendOutlined, PaperClipOutlined, FileOutlined, SearchOutlined, CloseOutlined, MenuOutlined, RobotOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { API_BASE_URL } from '../services/api';
@@ -35,6 +35,8 @@ export interface Message {
   attachmentName?: string;
   attachmentType?: string;
   attachmentSize?: number;
+  clientId?: string;
+  status?: 'sending' | 'sent' | 'failed';
 }
 
 export interface ReactionSummary {
@@ -88,6 +90,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
+
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'reconnecting' | 'disconnected'>('connecting');
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -286,6 +291,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
 
   // 3. Tải lịch sử tin nhắn phòng chat (mở phòng = đã đọc tới tin cuối)
   const fetchMessageHistory = async (roomId: number) => {
+    setLoadingHistory(true);
     try {
       setHasMore(true);
       setLoadingOlder(false);
@@ -300,12 +306,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       markConversationRead('room', roomId, lastId, roomId);
     } catch (err) {
       message.error('Không thể lấy lịch sử tin nhắn.');
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
   // 4. Tải lịch sử tin nhắn riêng tư (mở DM = đã đọc tới tin cuối).
   //    recipientUserId là khóa badge ở sidebar (DM key theo người đối thoại).
   const fetchPrivateMessageHistory = async (chatId: number, recipientUserId?: number) => {
+    setLoadingHistory(true);
     try {
       setHasMore(true);
       setLoadingOlder(false);
@@ -327,6 +336,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       markConversationRead('private', chatId, lastId, recipientUserId);
     } catch (err) {
       message.error('Không thể lấy lịch sử tin nhắn riêng tư.');
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -469,6 +480,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     conn.on('ReceiveMessage', (newMessage: Message) => {
       if (activeChatTypeRef.current === 'room' && newMessage.roomId === activeRoomIdRef.current) {
         setMessages((prev) => {
+          if (newMessage.clientId && prev.some(m => m.clientId === newMessage.clientId)) {
+            return prev.map(m => m.clientId === newMessage.clientId ? { ...newMessage, status: 'sent' } : m);
+          }
           if (prev.some(m => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
         });
@@ -483,6 +497,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
     conn.on('ReceivePrivateMessage', (newMessage: Message) => {
       if (activeChatTypeRef.current === 'private' && newMessage.privateChatId === activePrivateChatIdRef.current) {
         setMessages((prev) => {
+          if (newMessage.clientId && prev.some(m => m.clientId === newMessage.clientId)) {
+            return prev.map(m => m.clientId === newMessage.clientId ? { ...newMessage, status: 'sent' } : m);
+          }
           if (prev.some(m => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
         });
@@ -665,9 +682,18 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       }
     });
 
+    conn.onreconnecting(() => {
+      setConnectionStatus('reconnecting');
+    });
+
+    conn.onclose(() => {
+      setConnectionStatus('disconnected');
+    });
+
     // Sau khi kết nối lại: rejoin phòng + refetch tin hội thoại đang mở + refetch unread
     // (fold resync tối thiểu — tin đến lúc mất mạng không bị bỏ lỡ trên badge).
     conn.onreconnected(async () => {
+      setConnectionStatus('connected');
       fetchUnreadCounts();
       const lastId = lastReceivedMessageIdRef.current;
 
@@ -773,6 +799,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       .then(() => {
         if (cancelled) return;
         console.log('SignalR connected.');
+        setConnectionStatus('connected');
         
         const roomId = activeRoomIdRef.current;
         if (activeChatTypeRef.current === 'room' && roomId !== null) {
@@ -784,7 +811,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       .catch((err) => {
         if (cancelled) return;
         console.error('SignalR Connection Error: ', err);
-        message.error('Không thể kết nối đến máy chủ thời gian thực.');
+        setConnectionStatus('disconnected');
+        message.error({ content: 'Không thể kết nối đến máy chủ thời gian thực.', key: 'conn-error' });
       });
 
     return () => {
@@ -1033,36 +1061,24 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   };
 
   // 5. Gửi tin nhắn qua SignalR Hub
-  const handleSendMessage = async (textToSend?: string) => {
-    const text = textToSend !== undefined ? textToSend : inputText;
-    if ((!text.trim() && !pendingAttachment) || !connection) return;
-
+  const sendMessageWithClientId = useCallback(async (
+    text: string,
+    replyToId: number | null,
+    attUrl: string | null,
+    attName: string | null,
+    attType: string | null,
+    attSize: number | null,
+    clientId: string
+  ) => {
+    if (!connection) return;
     try {
-      const replyToId = replyingTo?.id;
-      const attUrl = pendingAttachment?.url ?? null;
-      const attName = pendingAttachment?.name ?? null;
-      const attType = pendingAttachment?.type ?? null;
-      const attSize = pendingAttachment?.size ?? null;
-
       if (activeChatType === 'room') {
         if (activeRoomId === null) return;
-        await connection.invoke('SendMessage', activeRoomId, text.trim(), replyToId, attUrl, attName, attType, attSize);
+        await connection.invoke('SendMessage', activeRoomId, text.trim(), replyToId, attUrl, attName, attType, attSize, clientId);
       } else {
         if (activePrivateChatId === null || !activeRecipient) return;
-        await connection.invoke('SendPrivateMessage', activeRecipient.id, text.trim(), replyToId, attUrl, attName, attType, attSize);
+        await connection.invoke('SendPrivateMessage', activeRecipient.id, text.trim(), replyToId, attUrl, attName, attType, attSize, clientId);
       }
-
-      if (isTypingRef.current) {
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        isTypingRef.current = false;
-        sendTyping(false);
-      }
-      if (textToSend === undefined) {
-        setInputText('');
-      }
-      setReplyingTo(null);
-      setMentionQuery(null);
-      setPendingAttachment(null);
     } catch (err: any) {
       const errMsg = err?.message || err?.toString() || 'Không thể gửi tin nhắn.';
       message.error(errMsg);
@@ -1070,7 +1086,99 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       if (match) {
         setMutedUntilText(match[1]);
       }
+      
+      // Update this message's status to failed
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.clientId === clientId ? { ...msg, status: 'failed' } : msg
+        )
+      );
     }
+  }, [connection, activeChatType, activeRoomId, activePrivateChatId, activeRecipient]);
+
+  const handleRetryMessage = useCallback(async (clientId: string) => {
+    if (connectionStatus !== 'connected') {
+      message.error({ content: 'Mất kết nối, thử lại sau.', key: 'conn-error' });
+      return;
+    }
+
+    let targetMsg: Message | undefined;
+    setMessages((prev) => {
+      targetMsg = prev.find((m) => m.clientId === clientId);
+      if (!targetMsg) return prev;
+      return prev.map((msg) =>
+        msg.clientId === clientId ? { ...msg, status: 'sending' } : msg
+      );
+    });
+
+    // Wait a brief tick to let setMessages apply (or retrieve directly since targetMsg is captured)
+    if (!targetMsg) return;
+
+    const replyToId = targetMsg.replyToId || null;
+    const attUrl = targetMsg.attachmentUrl || null;
+    const attName = targetMsg.attachmentName || null;
+    const attType = targetMsg.attachmentType || null;
+    const attSize = targetMsg.attachmentSize || null;
+
+    await sendMessageWithClientId(targetMsg.content, replyToId, attUrl, attName, attType, attSize, clientId);
+  }, [connectionStatus, sendMessageWithClientId]);
+
+  // 5. Gửi tin nhắn qua SignalR Hub
+  const handleSendMessage = async (textToSend?: string) => {
+    const text = textToSend !== undefined ? textToSend : inputText;
+    if ((!text.trim() && !pendingAttachment) || !connection) return;
+
+    if (connectionStatus !== 'connected') {
+      message.error({ content: 'Mất kết nối, thử lại sau.', key: 'conn-error' });
+      return;
+    }
+
+    const clientId = crypto.randomUUID();
+    const replyToId = replyingTo?.id || null;
+    const replyToSenderName = replyingTo?.senderName || undefined;
+    const replyToContent = replyingTo?.content || undefined;
+    const attUrl = pendingAttachment?.url ?? null;
+    const attName = pendingAttachment?.name ?? null;
+    const attType = pendingAttachment?.type ?? null;
+    const attSize = pendingAttachment?.size ?? null;
+
+    // Sinh ID tạm âm để tránh trùng với ID thật của DB
+    const tempId = -Math.floor(Math.random() * 10000000) - 1;
+    const optMessage: Message = {
+      id: tempId,
+      roomId: activeChatType === 'room' ? (activeRoomId ?? undefined) : undefined,
+      privateChatId: activeChatType === 'private' ? (activePrivateChatId ?? undefined) : undefined,
+      senderId: currentUserId ?? undefined,
+      senderName: username,
+      content: text.trim(),
+      createdAt: new Date().toISOString(),
+      isAi: false,
+      replyToId: replyToId || undefined,
+      replyToSenderName,
+      replyToContent,
+      attachmentUrl: attUrl || undefined,
+      attachmentName: attName || undefined,
+      attachmentType: attType || undefined,
+      attachmentSize: attSize || undefined,
+      clientId,
+      status: 'sending'
+    };
+
+    setMessages((prev) => [...prev, optMessage]);
+
+    if (isTypingRef.current) {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      isTypingRef.current = false;
+      sendTyping(false);
+    }
+    if (textToSend === undefined) {
+      setInputText('');
+    }
+    setReplyingTo(null);
+    setMentionQuery(null);
+    setPendingAttachment(null);
+
+    await sendMessageWithClientId(text, replyToId, attUrl, attName, attType, attSize, clientId);
   };
 
   const handleTranslateMessage = useCallback(async (msgId: number, text: string) => {
@@ -1280,6 +1388,55 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
           </div>
         </div>
 
+        {/* Connection Status Banner */}
+        {connectionStatus !== 'connected' && (
+          <div
+            style={{
+              padding: '6px 12px',
+              fontSize: '13px',
+              fontWeight: 500,
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              backgroundColor:
+                connectionStatus === 'connecting'
+                  ? 'var(--primary-soft)'
+                  : connectionStatus === 'reconnecting'
+                  ? '#FEF3C7'
+                  : '#FEE2E2',
+              color:
+                connectionStatus === 'connecting'
+                  ? 'var(--primary)'
+                  : connectionStatus === 'reconnecting'
+                  ? '#D97706'
+                  : '#DC2626',
+              borderBottom: '1px solid var(--border)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {connectionStatus === 'connecting' && (
+              <>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'inline-block' }} />
+                <span>Đang kết nối máy chủ... (lần đầu có thể mất ~50 giây)</span>
+              </>
+            )}
+            {connectionStatus === 'reconnecting' && (
+              <>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#D97706', display: 'inline-block' }} />
+                <span>Đang kết nối lại...</span>
+              </>
+            )}
+            {connectionStatus === 'disconnected' && (
+              <>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#DC2626', display: 'inline-block' }} />
+                <span>Mất kết nối — đang thử lại</span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Search Panel Overlay */}
         {searchOpen && (
           <div style={{
@@ -1374,7 +1531,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
             </>
           )}
 
-          {messages.length === 0 ? (
+          {loadingHistory && messages.length === 0 ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '14px', gap: '8px' }}>
+              <Spin tip="Đang tải tin nhắn..." size="small" />
+            </div>
+          ) : messages.length === 0 ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '14px' }}>
               Chưa có tin nhắn — hãy bắt đầu trò chuyện 👋
             </div>
@@ -1396,7 +1557,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
                 const receiptStatus = isLatestMy ? (msg.id <= partnerLastReadId ? 'seen' : 'sent') : undefined;
                 return (
                   <MessageBubble
-                    key={msg.id}
+                    key={msg.clientId || msg.id}
                     msg={msg}
                     currentUsername={username}
                     translation={translations[msg.id]}
@@ -1411,6 +1572,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
                     onReply={handleReply}
                     onEdit={handleEditMessage}
                     onDelete={handleDeleteMessage}
+                    onRetry={handleRetryMessage}
                   />
                 );
               });

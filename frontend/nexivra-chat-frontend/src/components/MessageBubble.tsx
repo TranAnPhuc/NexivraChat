@@ -19,6 +19,7 @@ interface MessageBubbleProps {
   onReply: (msg: Message) => void;
   onEdit: (msgId: number, newContent: string) => void;
   onDelete: (msgId: number) => void;
+  onRetry?: (clientId: string) => void;
 }
 
 const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
@@ -36,6 +37,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   onReply,
   onEdit,
   onDelete,
+  onRetry,
 }) => {
   const isMe = msg.senderName === currentUsername;
   const isAi = msg.isAi;
@@ -174,6 +176,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
           lineHeight: '1.5',
           whiteSpace: 'pre-wrap',
           minWidth: isEditing ? '260px' : 'auto',
+          opacity: msg.status === 'sending' ? 0.6 : 1,
         }}>
           {msg.replyToId && !isDeleted && (
             <div
@@ -307,7 +310,34 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
         </div>
       )}
 
-      {receiptStatus && !isDeleted && (
+      {msg.status === 'sending' && (
+        <div style={{ fontSize: '11px', marginTop: '3px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span>🕒</span>
+          <span>Đang gửi...</span>
+        </div>
+      )}
+
+      {msg.status === 'failed' && (
+        <div style={{ fontSize: '11px', marginTop: '3px', color: '#ff4d4f', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>⚠️ Gửi lỗi</span>
+          <button
+            onClick={() => msg.clientId && onRetry?.(msg.clientId)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: 'var(--primary)',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              fontWeight: 500,
+            }}
+          >
+            Gửi lại
+          </button>
+        </div>
+      )}
+
+      {receiptStatus && !isDeleted && (!msg.status || msg.status === 'sent') && (
         <div style={{
           fontSize: '11px',
           marginTop: '3px',
