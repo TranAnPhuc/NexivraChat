@@ -35,11 +35,13 @@ builder.Services.AddScoped<ProfileRepository>();
 builder.Services.AddScoped<ConversationReadRepository>();
 builder.Services.AddScoped<ReactionRepository>();
 builder.Services.AddScoped<MentionRepository>();
+builder.Services.AddScoped<ModerationRepository>();
 
 // 4. Đăng ký các Services phụ trợ
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddHttpClient<AiService>();
 builder.Services.AddHttpClient<TranslationService>();
+builder.Services.AddSingleton<ModerationService>();
 
 // 5. Cấu hình JWT Authentication (đọc từ JwtSettings:Secret hoặc Jwt:Key hoặc env Jwt__Key)
 var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? builder.Configuration["Jwt:Key"] ?? "DefaultSuperSecretKey1234567890123456";
@@ -104,10 +106,13 @@ try
     var context = app.Services.GetRequiredService<DapperContext>();
     DbInitializer.Initialize(context);
     Log.Information("Database initialized successfully.");
+    
+    // Khởi tạo trước ModerationService để nạp danh sách từ cấm
+    _ = app.Services.GetRequiredService<ModerationService>();
 }
 catch (Exception ex)
 {
-    Log.Error(ex, "Error initializing database");
+    Log.Error(ex, "Error initializing database or ModerationService");
 }
 
 // 6b. Đảm bảo thư mục lưu avatar tồn tại để UseStaticFiles phục vụ được.

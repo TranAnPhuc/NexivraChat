@@ -21,7 +21,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id, username, password_hash, created_at FROM users WHERE username = @username LIMIT 1";
+                var query = "SELECT id, username, password_hash, created_at AS CreatedAt, is_admin AS IsAdmin, strike_count AS StrikeCount, muted_until AS MutedUntil FROM users WHERE username = @username LIMIT 1";
                 return await connection.QueryFirstOrDefaultAsync<User>(query, new { username });
             }
         }
@@ -30,7 +30,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id, username, created_at AS CreatedAt FROM users WHERE id = @id LIMIT 1";
+                var query = "SELECT id, username, created_at AS CreatedAt, is_admin AS IsAdmin, strike_count AS StrikeCount, muted_until AS MutedUntil FROM users WHERE id = @id LIMIT 1";
                 return await connection.QueryFirstOrDefaultAsync<User>(query, new { id });
             }
         }
@@ -39,7 +39,7 @@ namespace NexivraChatBackend.Repositories
         {
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id, username, created_at AS CreatedAt FROM users ORDER BY username ASC";
+                var query = "SELECT id, username, created_at AS CreatedAt, is_admin AS IsAdmin, strike_count AS StrikeCount, muted_until AS MutedUntil FROM users ORDER BY username ASC";
                 return (await connection.QueryAsync<User>(query)).ToList();
             }
         }
@@ -71,7 +71,7 @@ namespace NexivraChatBackend.Repositories
 
             using (var connection = _context.CreateConnection())
             {
-                var query = "SELECT id AS Id, username AS Username, created_at AS CreatedAt FROM users WHERE username = ANY(@list)";
+                var query = "SELECT id AS Id, username AS Username, created_at AS CreatedAt, is_admin AS IsAdmin, strike_count AS StrikeCount, muted_until AS MutedUntil FROM users WHERE username = ANY(@list)";
                 return (await connection.QueryAsync<User>(query, new { list = list.ToArray() })).ToList();
             }
         }

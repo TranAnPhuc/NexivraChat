@@ -161,6 +161,57 @@ namespace NexivraChatBackend.Data
                         ON conversation_reads (user_id, private_chat_id) WHERE private_chat_id IS NOT NULL;";
                 connection.Execute(createConversationReadIndexes);
 
+                // 9. Tạo bảng moderation_logs
+                var createModerationLogsTable = @"
+                    CREATE TABLE IF NOT EXISTS moderation_logs (
+                        id SERIAL PRIMARY KEY,
+                        user_id INT NULL REFERENCES users(id) ON DELETE SET NULL,
+                        username VARCHAR(50) NOT NULL,
+                        context_type VARCHAR(20) NOT NULL,
+                        original_text TEXT NOT NULL,
+                        tier VARCHAR(20) NOT NULL,
+                        ai_verdict VARCHAR(20) NULL,
+                        action VARCHAR(20) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                    );";
+                connection.Execute(createModerationLogsTable);
+
+                var createModLogIndexes = @"
+                    CREATE INDEX IF NOT EXISTS idx_modlog_user_created ON moderation_logs (user_id, created_at);";
+                connection.Execute(createModLogIndexes);
+
+                // 10. Thêm cột strike_count, is_admin, muted_until vào bảng users
+                var alterUsersTable = @"
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE NOT NULL;
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS strike_count INT DEFAULT 0 NOT NULL;
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS muted_until TIMESTAMP NULL;";
+                connection.Execute(alterUsersTable);
+
+                // Auto-seed admin cho username 'anphuc'
+                connection.Execute("UPDATE users SET is_admin = TRUE WHERE username = 'anphuc';");
+
+                // 11. Tạo bảng banned_words
+                var createBannedWordsTable = @"
+                    CREATE TABLE IF NOT EXISTS banned_words (
+                        id SERIAL PRIMARY KEY,
+                        word VARCHAR(100) UNIQUE NOT NULL,
+                        tier VARCHAR(20) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                    );";
+                connection.Execute(createBannedWordsTable);
+
+                // Seed banned_words mặc định nếu bảng rỗng
+                var bannedWordsCount = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM banned_words;");
+                if (bannedWordsCount == 0)
+                {
+                    foreach (var wordInfo in DefaultBannedWords.Words)
+                    {
+                        connection.Execute(
+                            "INSERT INTO banned_words (word, tier) VALUES (@word, @tier) ON CONFLICT DO NOTHING;",
+                            new { word = wordInfo.Word, tier = wordInfo.Tier });
+                    }
+                }
+
                 // 4. Seed phòng mặc định nếu rỗng
                 var checkRooms = "SELECT COUNT(*) FROM chat_rooms";
                 var roomCount = connection.ExecuteScalar<int>(checkRooms);

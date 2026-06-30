@@ -22,6 +22,9 @@ namespace NexivraChatBackend.Hubs
         private readonly ReactionRepository _reactionRepository;
         private readonly UserRepository _userRepository;
         private readonly MentionRepository _mentionRepository;
+        private readonly ModerationService _moderationService;
+        private readonly ModerationRepository _moderationRepository;
+        private readonly IConfiguration _config;
         private readonly ILogger<ChatHub> _logger;
 
         public ChatHub(
@@ -33,6 +36,9 @@ namespace NexivraChatBackend.Hubs
             ReactionRepository reactionRepository,
             UserRepository userRepository,
             MentionRepository mentionRepository,
+            ModerationService moderationService,
+            ModerationRepository moderationRepository,
+            IConfiguration config,
             ILogger<ChatHub> logger)
         {
             _messageRepository = messageRepository;
@@ -43,7 +49,58 @@ namespace NexivraChatBackend.Hubs
             _reactionRepository = reactionRepository;
             _userRepository = userRepository;
             _mentionRepository = mentionRepository;
+            _moderationService = moderationService;
+            _moderationRepository = moderationRepository;
+            _config = config;
             _logger = logger;
+        }
+
+        private async Task<string> CheckMuteAndModerate(int userId, string username, string content, string contextType)
+        {
+            // 1. Check mute
+            var mutedUntil = await _moderationRepository.GetMutedUntilAsync(userId);
+            if (mutedUntil.HasValue && mutedUntil.Value > DateTime.Now)
+            {
+                var localMutedUntil = mutedUntil.Value.ToString("HH:mm dd/MM/yyyy");
+                throw new HubException($"Bạn đang bị tạm hạn chế gửi tin đến {localMutedUntil}.");
+            }
+
+            // 2. Moderate
+            var modResult = await _moderationService.CheckAsync(content, contextType, userId, username);
+            if (modResult.Action == "block")
+            {
+                // Tăng strike & xem xét mute
+                var windowMin = int.TryParse(_config["Moderation:StrikeWindowMinutes"], out var wm) ? wm : 10;
+                var threshold = int.TryParse(_config["Moderation:StrikeThreshold"], out var th) ? th : 3;
+                var muteMin = int.TryParse(_config["Moderation:MuteDurationMinutes"], out var mm) ? mm : 15;
+
+                await _moderationRepository.IncrementStrikeAndMaybeMuteAsync(
+                    userId, 
+                    threshold, 
+                    TimeSpan.FromMinutes(windowMin), 
+                    TimeSpan.FromMinutes(muteMin));
+
+                throw new HubException(modResult.Reason);
+            }
+            else if (modResult.Action == "mask")
+            {
+                var masked = modResult.MaskedText ?? content;
+
+                // Tăng strike & xem xét mute
+                var windowMin = int.TryParse(_config["Moderation:StrikeWindowMinutes"], out var wm) ? wm : 10;
+                var threshold = int.TryParse(_config["Moderation:StrikeThreshold"], out var th) ? th : 3;
+                var muteMin = int.TryParse(_config["Moderation:MuteDurationMinutes"], out var mm) ? mm : 15;
+
+                await _moderationRepository.IncrementStrikeAndMaybeMuteAsync(
+                    userId, 
+                    threshold, 
+                    TimeSpan.FromMinutes(windowMin), 
+                    TimeSpan.FromMinutes(muteMin));
+
+                return masked;
+            }
+
+            return content;
         }
 
         public async Task JoinRoom(int roomId)
@@ -131,6 +188,11 @@ namespace NexivraChatBackend.Hubs
             if (int.TryParse(Context.UserIdentifier, out var parsedSenderId))
             {
                 senderId = parsedSenderId;
+            }
+
+            if (senderId.HasValue)
+            {
+                content = await CheckMuteAndModerate(senderId.Value, username, content, "room");
             }
 
             int? validReplyToId = (replyToId.HasValue && replyToId.Value > 0) ? replyToId.Value : null;
@@ -278,6 +340,8 @@ namespace NexivraChatBackend.Hubs
             }
 
             var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            content = await CheckMuteAndModerate(senderId, username, content, "private");
+
             int? validReplyToId = (replyToId.HasValue && replyToId.Value > 0) ? replyToId.Value : null;
 
             // 1. Lấy hoặc tạo phòng chat 1-1
@@ -414,7 +478,11 @@ namespace NexivraChatBackend.Hubs
                 throw new HubException("Không xác định được danh tính người dùng.");
             }
 
-            var affected = await _messageRepository.EditMessage(messageId, userId, newContent.Trim());
+            var username = Context.User?.Identity?.Name ?? "Ẩn danh";
+            var editedContent = newContent.Trim();
+            editedContent = await CheckMuteAndModerate(userId, username, editedContent, "room");
+
+            var affected = await _messageRepository.EditMessage(messageId, userId, editedContent);
             if (affected == 0)
             {
                 throw new HubException("Không có quyền hoặc tin không tồn tại.");
@@ -423,7 +491,7 @@ namespace NexivraChatBackend.Hubs
             var conv = await _reactionRepository.LookupConversation(messageId);
             if (conv != null)
             {
-                var payload = new { messageId, newContent = newContent.Trim(), editedAt = DateTime.Now };
+                var payload = new { messageId, newContent = editedContent, editedAt = DateTime.Now };
                 if (conv.RoomId.HasValue)
                 {
                     await Clients.Group(conv.RoomId.Value.ToString()).SendAsync("MessageEdited", payload);

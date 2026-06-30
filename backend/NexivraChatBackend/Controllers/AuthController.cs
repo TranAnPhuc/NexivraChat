@@ -13,12 +13,14 @@ namespace NexivraChatBackend.Controllers
     {
         private readonly UserRepository _userRepository;
         private readonly TokenService _tokenService;
+        private readonly ModerationService _moderationService;
         private readonly PasswordHasher<User> _passwordHasher;
 
-        public AuthController(UserRepository userRepository, TokenService tokenService)
+        public AuthController(UserRepository userRepository, TokenService tokenService, ModerationService moderationService)
         {
             _userRepository = userRepository;
             _tokenService = tokenService;
+            _moderationService = moderationService;
             _passwordHasher = new PasswordHasher<User>();
         }
 
@@ -28,6 +30,12 @@ namespace NexivraChatBackend.Controllers
             if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
             {
                 return BadRequest("Tên đăng nhập và mật khẩu không được để trống.");
+            }
+
+            var modResult = await _moderationService.CheckAsync(dto.Username, "username");
+            if (modResult.Action != "allow")
+            {
+                return BadRequest("Tên đăng ký không hợp lệ.");
             }
 
             var existingUser = await _userRepository.GetByUsername(dto.Username);

@@ -81,6 +81,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [mentionIndex, setMentionIndex] = useState<number>(-1);
   const [pendingAttachment, setPendingAttachment] = useState<{ url: string; name: string; type: string; size: number } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [mutedUntilText, setMutedUntilText] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -108,6 +109,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   // (không tạo lại khi presence cập nhật), nhờ đó React.memo của MessageBubble giữ hiệu lực.
   const usersRef = useRef(users);
   useEffect(() => { usersRef.current = users; }, [users]);
+
+  useEffect(() => {
+    setMutedUntilText(null);
+  }, [activeRoomId, activePrivateChatId]);
 
   // Đánh dấu một hội thoại đã đọc.
   // - serverId: room → roomId; private → privateChatId (khóa lưu trữ).
@@ -1053,8 +1058,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
       setReplyingTo(null);
       setMentionQuery(null);
       setPendingAttachment(null);
-    } catch (err) {
-      message.error('Không thể gửi tin nhắn.');
+    } catch (err: any) {
+      const errMsg = err?.message || err?.toString() || 'Không thể gửi tin nhắn.';
+      message.error(errMsg);
+      const match = errMsg.match(/Bạn đang bị tạm hạn chế gửi tin đến (.*)\./);
+      if (match) {
+        setMutedUntilText(match[1]);
+      }
     }
   };
 
@@ -1412,16 +1422,18 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
             <Button
               icon={<PaperClipOutlined />}
               loading={isUploading}
+              disabled={!!mutedUntilText}
               onClick={() => fileInputRef.current?.click()}
               title="Đính kèm ảnh hoặc file tài liệu (≤10MB)"
             />
             <Input
               value={inputText}
+              disabled={!!mutedUntilText}
               onChange={(e) => handleInputChange(e.target.value)}
               onPressEnter={() => handleSendMessage()}
-              placeholder={activeChatType === 'room' ? "Nhập tin nhắn… (gõ @copilot để hỏi AI)" : "Nhập tin nhắn..."}
+              placeholder={mutedUntilText ? `Bạn đang bị tạm hạn chế gửi tin đến ${mutedUntilText}` : (activeChatType === 'room' ? "Nhập tin nhắn… (gõ @copilot để hỏi AI)" : "Nhập tin nhắn...")}
             />
-            <Button type="primary" icon={<SendOutlined />} onClick={() => handleSendMessage()} style={{ fontWeight: 500 }}>
+            <Button type="primary" icon={<SendOutlined />} disabled={!!mutedUntilText} onClick={() => handleSendMessage()} style={{ fontWeight: 500 }}>
               Gửi
             </Button>
           </div>
