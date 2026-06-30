@@ -4,9 +4,10 @@ import { RobotOutlined, BookOutlined, BulbOutlined, AlignLeftOutlined } from '@a
 
 interface CopilotPanelProps {
   onTriggerCommand: (command: string) => void;
+  fullWidth?: boolean;
 }
 
-export const CopilotPanel: React.FC<CopilotPanelProps> = ({ onTriggerCommand }) => {
+export const CopilotPanel: React.FC<CopilotPanelProps> = ({ onTriggerCommand, fullWidth = false }) => {
   const [term, setTerm] = useState('');
 
   const handleExplainTerm = () => {
@@ -17,7 +18,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ onTriggerCommand }) 
   };
 
   return (
-    <div style={{ width: '280px', boxSizing: 'border-box', backgroundColor: 'var(--bg-surface)', borderLeft: '1px solid var(--border)', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, color: 'var(--text-primary)' }}>
+    <div style={{ width: fullWidth ? '100%' : '280px', boxSizing: 'border-box', backgroundColor: 'var(--bg-surface)', borderLeft: fullWidth ? 'none' : '1px solid var(--border)', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, color: 'var(--text-primary)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
         <RobotOutlined style={{ color: 'var(--primary)', fontSize: '20px' }} />

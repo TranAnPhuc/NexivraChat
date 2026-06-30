@@ -34,6 +34,7 @@ interface RoomSidebarProps {
   // id người đối thoại của DM đang mở (để ẩn badge hội thoại active).
   activePrivateUserId?: number | null;
   mentionRooms?: Set<number>;
+  fullWidth?: boolean;
 }
 
 export const RoomSidebar: React.FC<RoomSidebarProps> = ({
@@ -51,6 +52,7 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
   unreadPrivateChats = {},
   activePrivateUserId = null,
   mentionRooms = new Set(),
+  fullWidth = false,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -75,7 +77,7 @@ export const RoomSidebar: React.FC<RoomSidebarProps> = ({
   const initials = username.slice(0, 2).toUpperCase();
 
   return (
-    <div style={{ width: '260px', backgroundColor: 'var(--bg-elevated)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ width: fullWidth ? '100%' : '260px', backgroundColor: 'var(--bg-elevated)', borderRight: fullWidth ? 'none' : '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Brand Logo */}
       <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
         <Logo height={26} />

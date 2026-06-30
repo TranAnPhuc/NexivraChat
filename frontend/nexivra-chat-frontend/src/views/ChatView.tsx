@@ -3,14 +3,15 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
-import { Input, Button, message, notification } from 'antd';
-import { SendOutlined, PaperClipOutlined, FileOutlined, SearchOutlined, CloseOutlined } from '@ant-design/icons';
+import { Input, Button, message, notification, Drawer } from 'antd';
+import { SendOutlined, PaperClipOutlined, FileOutlined, SearchOutlined, CloseOutlined, MenuOutlined, RobotOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { API_BASE_URL } from '../services/api';
 import { RoomSidebar, type Room, type SidebarUser } from '../components/RoomSidebar';
 import { CopilotPanel } from '../components/CopilotPanel';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { MessageBubble } from '../components/MessageBubble';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const ProfileView = lazy(() =>
   import('./ProfileView').then((m) => ({ default: m.ProfileView }))
@@ -83,6 +84,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const [isUploading, setIsUploading] = useState(false);
   const [mutedUntilText, setMutedUntilText] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1122,67 +1127,143 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
   const activeRoom = rooms.find((r) => r.id === activeRoomId);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: 'var(--bg-canvas)', overflow: 'hidden' }}>
-      <RoomSidebar
-        rooms={rooms}
-        users={users}
-        activeRoomId={activeRoomId}
-        activeChatType={activeChatType}
-        onSelectRoom={handleSelectRoom}
-        onSelectUser={handleSelectUser}
-        onRoomCreated={handleRoomCreated}
-        onLogout={onLogout}
-        username={username}
-        onOpenProfile={handleOpenProfile}
-        unreadRooms={unread.rooms}
-        unreadPrivateChats={unread.privateChats}
-        activePrivateUserId={activeRecipient?.id ?? null}
-        mentionRooms={mentionRooms}
-      />
+    <div style={{ display: 'flex', height: isMobile ? '100dvh' : '100vh', width: isMobile ? '100%' : '100vw', backgroundColor: 'var(--bg-canvas)', overflow: 'hidden' }}>
+      {isMobile ? (
+        <>
+          <Drawer
+            placement="left"
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            width="82%"
+            styles={{ body: { padding: 0 } }}
+          >
+            <RoomSidebar
+              rooms={rooms}
+              users={users}
+              activeRoomId={activeRoomId}
+              activeChatType={activeChatType}
+              onSelectRoom={(id) => {
+                handleSelectRoom(id);
+                setSidebarOpen(false);
+              }}
+              onSelectUser={(id) => {
+                handleSelectUser(id);
+                setSidebarOpen(false);
+              }}
+              onRoomCreated={handleRoomCreated}
+              onLogout={onLogout}
+              username={username}
+              onOpenProfile={handleOpenProfile}
+              unreadRooms={unread.rooms}
+              unreadPrivateChats={unread.privateChats}
+              activePrivateUserId={activeRecipient?.id ?? null}
+              mentionRooms={mentionRooms}
+              fullWidth={true}
+            />
+          </Drawer>
+
+          <Drawer
+            placement="right"
+            open={copilotOpen}
+            onClose={() => setCopilotOpen(false)}
+            width="85%"
+            styles={{ body: { padding: 0 } }}
+          >
+            {activeChatType === 'room' && (
+              <CopilotPanel
+                onTriggerCommand={(cmd) => {
+                  handleSendMessage(cmd);
+                  setCopilotOpen(false);
+                }}
+                fullWidth={true}
+              />
+            )}
+          </Drawer>
+        </>
+      ) : (
+        <RoomSidebar
+          rooms={rooms}
+          users={users}
+          activeRoomId={activeRoomId}
+          activeChatType={activeChatType}
+          onSelectRoom={handleSelectRoom}
+          onSelectUser={handleSelectUser}
+          onRoomCreated={handleRoomCreated}
+          onLogout={onLogout}
+          username={username}
+          onOpenProfile={handleOpenProfile}
+          unreadRooms={unread.rooms}
+          unreadPrivateChats={unread.privateChats}
+          activePrivateUserId={activeRecipient?.id ?? null}
+          mentionRooms={mentionRooms}
+        />
+      )}
 
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-surface)', position: 'relative' }}>
         {/* Room Header */}
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <span 
-              style={{ 
-                color: 'var(--text-primary)', 
-                fontWeight: 600, 
-                fontSize: '16px', 
-                fontFamily: "'Outfit', sans-serif",
-                cursor: activeChatType === 'private' ? 'pointer' : 'default',
-                textDecoration: activeChatType === 'private' ? 'underline' : 'none'
-              }}
-              onClick={() => {
-                if (activeChatType === 'private' && activeRecipient) {
-                  handleOpenProfile(activeRecipient.id);
-                }
-              }}
-              title={activeChatType === 'private' ? "Xem hồ sơ" : undefined}
-            >
-              {activeChatType === 'room'
-                ? (activeRoom ? `# ${activeRoom.name}` : 'Chưa chọn phòng')
-                : (activeRecipient ? `@ ${activeRecipient.username}` : 'Trò chuyện cá nhân')}
-            </span>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-              {activeChatType === 'room'
-                ? (activeRoom ? activeRoom.description : 'Chọn một phòng để bắt đầu trò chuyện')
-                : (activeRecipient ? 'Tin nhắn riêng tư bảo mật' : 'Chọn một người bạn để bắt đầu trò chuyện')}
+        <div style={{ padding: isMobile ? '10px 12px' : '14px 20px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            {isMobile && (
+              <Button
+                icon={<MenuOutlined />}
+                onClick={() => setSidebarOpen(true)}
+                title="Mở danh sách phòng"
+                style={{ flexShrink: 0 }}
+              />
+            )}
+            <div style={{ minWidth: 0 }}>
+              <span 
+                style={{ 
+                  color: 'var(--text-primary)', 
+                  fontWeight: 600, 
+                  fontSize: isMobile ? '15px' : '16px', 
+                  fontFamily: "'Outfit', sans-serif",
+                  cursor: activeChatType === 'private' ? 'pointer' : 'default',
+                  textDecoration: activeChatType === 'private' ? 'underline' : 'none',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: 'inline-block',
+                  maxWidth: '100%'
+                }}
+                onClick={() => {
+                  if (activeChatType === 'private' && activeRecipient) {
+                    handleOpenProfile(activeRecipient.id);
+                  }
+                }}
+                title={activeChatType === 'private' ? "Xem hồ sơ" : undefined}
+              >
+                {activeChatType === 'room'
+                  ? (activeRoom ? `# ${activeRoom.name}` : 'Chưa chọn phòng')
+                  : (activeRecipient ? `@ ${activeRecipient.username}` : 'Trò chuyện cá nhân')}
+              </span>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {activeChatType === 'room'
+                  ? (activeRoom ? activeRoom.description : 'Chọn một phòng để bắt đầu trò chuyện')
+                  : (activeRecipient ? 'Tin nhắn riêng tư bảo mật' : 'Chọn một người bạn để bắt đầu trò chuyện')}
+              </div>
+              {activeChatType === 'room' && activeRoom && (
+                <div style={{ fontSize: '11px', color: 'var(--primary)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '5px' }} title={onlineUsers.join(', ')}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)' }} />
+                  {onlineUsers.length} online
+                </div>
+              )}
+              {activeChatType === 'private' && activeRecipient && (
+                <div style={{ fontSize: '11px', color: activeRecipient.isOnline ? 'var(--primary)' : 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: activeRecipient.isOnline ? 'var(--primary)' : 'var(--text-muted)' }} />
+                  {activeRecipient.isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'}
+                </div>
+              )}
             </div>
-            {activeChatType === 'room' && activeRoom && (
-              <div style={{ fontSize: '12px', color: 'var(--primary)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '5px' }} title={onlineUsers.join(', ')}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)' }} />
-                {onlineUsers.length} người đang online{onlineUsers.length > 0 ? `: ${onlineUsers.join(', ')}` : ''}
-              </div>
-            )}
-            {activeChatType === 'private' && activeRecipient && (
-              <div style={{ fontSize: '12px', color: activeRecipient.isOnline ? 'var(--primary)' : 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: activeRecipient.isOnline ? 'var(--primary)' : 'var(--text-muted)' }} />
-                {activeRecipient.isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'}
-              </div>
-            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '6px' : '12px', flexShrink: 0 }}>
+            {isMobile && activeChatType === 'room' && (
+              <Button
+                icon={<RobotOutlined />}
+                onClick={() => setCopilotOpen(true)}
+                title="Mở Trợ lý AI"
+              />
+            )}
             <Button
               icon={<SearchOutlined />}
               onClick={() => {
@@ -1203,9 +1284,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         {searchOpen && (
           <div style={{
             position: 'absolute',
-            top: '70px',
-            right: '20px',
-            width: '320px',
+            top: isMobile ? '56px' : '70px',
+            right: isMobile ? '12px' : '20px',
+            width: 'min(320px, calc(100vw - 24px))',
             backgroundColor: 'var(--bg-elevated)',
             border: '1px solid var(--border)',
             borderRadius: '8px',
@@ -1272,7 +1353,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         </div>
 
         {/* Message Area */}
-        <div ref={messagesContainerRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: 'var(--bg-canvas)' }}>
+        <div ref={messagesContainerRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '12px' : '20px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: 'var(--bg-canvas)' }}>
           {messages.length > 0 && (
             <>
               {hasMore && (
@@ -1349,12 +1430,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
         </div>
 
         {/* Input Area */}
-        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: '10px', position: 'relative' }}>
+        <div style={{ padding: isMobile ? '10px 12px' : '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: '10px', position: 'relative' }}>
           {mentionQuery !== null && filteredMentionUsers.length > 0 && (
             <div style={{
               position: 'absolute',
               bottom: '60px',
-              left: '20px',
+              left: isMobile ? '12px' : '20px',
               backgroundColor: 'var(--bg-elevated)',
               border: '1px solid var(--border)',
               borderRadius: '8px',
@@ -1362,7 +1443,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               maxHeight: '180px',
               overflowY: 'auto',
               zIndex: 100,
-              width: '220px',
+              width: 'min(220px, calc(100vw - 32px))',
               padding: '4px 0'
             }}>
               {filteredMentionUsers.map((u) => (
@@ -1425,6 +1506,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               disabled={!!mutedUntilText}
               onClick={() => fileInputRef.current?.click()}
               title="Đính kèm ảnh hoặc file tài liệu (≤10MB)"
+              style={{ height: '40px', width: '40px', flexShrink: 0 }}
             />
             <Input
               value={inputText}
@@ -1432,15 +1514,16 @@ export const ChatView: React.FC<ChatViewProps> = ({ username, token, onLogout })
               onChange={(e) => handleInputChange(e.target.value)}
               onPressEnter={() => handleSendMessage()}
               placeholder={mutedUntilText ? `Bạn đang bị tạm hạn chế gửi tin đến ${mutedUntilText}` : (activeChatType === 'room' ? "Nhập tin nhắn… (gõ @copilot để hỏi AI)" : "Nhập tin nhắn...")}
+              style={{ fontSize: isMobile ? '16px' : '14px', height: '40px' }}
             />
-            <Button type="primary" icon={<SendOutlined />} disabled={!!mutedUntilText} onClick={() => handleSendMessage()} style={{ fontWeight: 500 }}>
-              Gửi
+            <Button type="primary" icon={<SendOutlined />} disabled={!!mutedUntilText} onClick={() => handleSendMessage()} style={{ fontWeight: 500, height: '40px' }}>
+              {isMobile ? '' : 'Gửi'}
             </Button>
           </div>
         </div>
       </div>
 
-      {activeChatType === 'room' && <CopilotPanel onTriggerCommand={handleSendMessage} />}
+      {!isMobile && activeChatType === 'room' && <CopilotPanel onTriggerCommand={handleSendMessage} />}
       {profileEverOpened && (
         <Suspense fallback={null}>
           <ProfileView

@@ -41,39 +41,43 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     <div style={{
       position: 'relative',
       display: 'flex',
+      flexDirection: 'column',
       justifyContent: 'center',
       alignItems: 'center',
-      height: '100vh',
+      minHeight: '100dvh',
       backgroundColor: 'var(--bg-canvas)',
       color: 'var(--text-primary)',
+      padding: '24px 16px',
+      boxSizing: 'border-box',
     }}>
       <div style={{ position: 'absolute', top: 16, right: 16 }}>
         <ThemeToggle />
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-        <Logo height={44} />
-      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 380 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+          <Logo height={44} />
+        </div>
 
-      <Card
-        title={
-          <div style={{
-            textAlign: 'center',
-            fontSize: '20px',
-            fontWeight: 600,
-            fontFamily: "'Outfit', sans-serif",
-            color: 'var(--text-primary)',
-          }}>
-            {isRegister ? 'Đăng ký' : 'Đăng nhập'}
-          </div>
-        }
-        style={{
-          width: 380,
-          backgroundColor: 'var(--bg-surface)',
-          borderColor: 'var(--border)',
-          borderRadius: 12,
-        }}
-      >
+        <Card
+          title={
+            <div style={{
+              textAlign: 'center',
+              fontSize: '20px',
+              fontWeight: 600,
+              fontFamily: "'Outfit', sans-serif",
+              color: 'var(--text-primary)',
+            }}>
+              {isRegister ? 'Đăng ký' : 'Đăng nhập'}
+            </div>
+          }
+          style={{
+            width: '100%',
+            backgroundColor: 'var(--bg-surface)',
+            borderColor: 'var(--border)',
+            borderRadius: 12,
+          }}
+        >
         <Form form={form} name="auth_form" onFinish={handleFinish} layout="vertical">
           <Form.Item
             name="username"
@@ -112,6 +116,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </span>
         </div>
       </Card>
+      </div>
     </div>
   );
 };

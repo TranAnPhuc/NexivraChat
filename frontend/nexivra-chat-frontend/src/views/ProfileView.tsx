@@ -5,6 +5,7 @@ import {
   CameraOutlined, LinkOutlined, PlusOutlined, DeleteOutlined, HeartOutlined
 } from '@ant-design/icons';
 import api, { STATIC_BASE_URL } from '../services/api';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface ProfileViewProps {
   userId: number;
@@ -48,6 +49,7 @@ const MAX_INTERESTS = 15;
 const MAX_AVATAR_MB = 2;
 
 export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClose, currentUsername }) => {
+  const isMobile = useIsMobile();
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -269,8 +271,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
       open={isOpen}
       onCancel={onClose}
       footer={null}
-      width={540}
-      style={{ maxWidth: 'calc(100vw - 32px)' }}
+      width={isMobile ? '100%' : 540}
+      style={{ maxWidth: isMobile ? 'calc(100vw - 16px)' : 'calc(100vw - 32px)', margin: isMobile ? '8px auto' : undefined }}
       centered
       styles={{
         body: {
@@ -299,10 +301,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
         {profile && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             {/* ── 1. DANH TÍNH ── */}
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', padding: '0 24px' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '20px', alignItems: isMobile ? 'center' : 'flex-start', padding: isMobile ? '0 16px' : '0 24px', textAlign: isMobile ? 'center' : 'left' }}>
               {avatarBlock}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: "'Outfit', sans-serif", display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: "'Outfit', sans-serif", display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '10px' }}>
                   {profile.username}
                   {isOwnProfile && !isEditing && (
                     <Button type="text" size="small" icon={<EditOutlined style={{ color: 'var(--primary)' }} />} onClick={() => setIsEditing(true)} aria-label="Chỉnh sửa hồ sơ" />
@@ -310,7 +312,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
                 </div>
 
                 {isEditing ? (
-                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: isMobile ? 'stretch' : 'flex-start', textAlign: 'left' }}>
                     <Input.TextArea
                       value={editedBio}
                       onChange={(e) => setEditedBio(e.target.value)}
@@ -318,18 +320,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
                       rows={2}
                       maxLength={255}
                       showCount
+                      style={{ width: '100%' }}
                     />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: isMobile ? 'center' : 'flex-start' }}>
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Ngôn ngữ:</span>
                       <Select
-                        value={editedLang}
-                        onChange={(val) => setEditedLang(val)}
-                        options={languages}
-                        size="small"
-                        style={{ width: 120 }}
+                         value={editedLang}
+                         onChange={(val) => setEditedLang(val)}
+                         options={languages}
+                         size="small"
+                         style={{ width: 120 }}
                       />
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', width: '100%', justifyContent: isMobile ? 'center' : 'flex-start' }}>
                       <Button size="small" icon={<CameraOutlined />} onClick={handleAvatarPick} loading={uploading}>Tải ảnh</Button>
                       {profile.avatarUrl && (
                         <Button size="small" danger icon={<DeleteOutlined />} onClick={handleRemoveAvatar} loading={uploading}>Gỡ ảnh</Button>
@@ -341,7 +344,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
                     <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0, fontStyle: profile.bio ? 'normal' : 'italic' }}>
                       {profile.bio || 'Chưa có tiểu sử.'}
                     </p>
-                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-muted)', justifyContent: isMobile ? 'center' : 'flex-start' }}>
                       <GlobalOutlined />
                       <span>Ngôn ngữ bản địa: {languages.find(l => l.value === profile.nativeLanguage)?.label || profile.nativeLanguage}</span>
                     </div>
@@ -351,7 +354,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
             </div>
 
             {/* ── 2. SỞ THÍCH ── */}
-            <div style={{ padding: '0 24px' }}>
+            <div style={{ padding: isMobile ? '0 16px' : '0 24px' }}>
               <div style={sectionLabelStyle}>
                 <HeartOutlined style={{ color: 'var(--primary)', marginRight: 6 }} />
                 Sở thích
@@ -383,7 +386,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
             </div>
 
             {/* ── 3. SOCIAL LINKS ── */}
-            <div style={{ padding: '0 24px' }}>
+            <div style={{ padding: isMobile ? '0 16px' : '0 24px' }}>
               <div style={sectionLabelStyle}>
                 <LinkOutlined style={{ color: 'var(--primary)', marginRight: 6 }} />
                 Liên kết mạng xã hội
@@ -395,9 +398,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
                       <Input
                         value={link.label}
                         onChange={(e) => updateLinkRow(idx, 'label', e.target.value)}
-                        placeholder="Nhãn (vd: GitHub)"
+                        placeholder="Nhãn"
                         size="small"
-                        style={{ width: 120 }}
+                        style={{ width: isMobile ? 80 : 120 }}
                         aria-label={`Nhãn liên kết ${idx + 1}`}
                       />
                       <Input
@@ -439,7 +442,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
             </div>
 
             {isEditing && (
-              <div style={{ padding: '0 24px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <div style={{ padding: isMobile ? '0 16px' : '0 24px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                 <Button size="small" onClick={() => { syncEditState(profile); setIsEditing(false); }}>Hủy</Button>
                 <Button size="small" type="primary" icon={<CheckOutlined />} onClick={handleUpdateProfile}>Lưu</Button>
               </div>
@@ -448,7 +451,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ userId, isOpen, onClos
             <Divider style={{ margin: '4px 0' }} />
 
             {/* ── 4. PHÂN TÍCH AI ── */}
-            <div style={{ padding: '0 24px' }}>
+            <div style={{ padding: isMobile ? '0 16px' : '0 24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <ThunderboltOutlined style={{ color: 'var(--accent)' }} />
